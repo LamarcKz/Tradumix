@@ -3,6 +3,7 @@
 
 mod comandos;
 mod config;
+mod pasta_dados;
 
 use tauri::Manager;
 
@@ -11,7 +12,12 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
-            let dados = app.path().app_data_dir()?;
+            let instalado = app.path().app_data_dir()?;
+            let desenvolvimento = cfg!(debug_assertions);
+            let dados = pasta_dados::pasta_de_dados(&std::env::current_exe()?, instalado.clone(), desenvolvimento);
+            if desenvolvimento {
+                pasta_dados::preparar_copia_de_desenvolvimento(&instalado, &dados)?;
+            }
             app.manage(comandos::Estado::novo(dados));
             Ok(())
         })

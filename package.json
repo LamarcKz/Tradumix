@@ -9,6 +9,7 @@
   "scripts": {
     "xdelta3": "node scripts/baixar-xdelta3.mjs",
     "dev": "tauri dev",
+    "dev:nova-copia": "node scripts/dev-nova-copia.mjs",
     "web:dev": "vite",
     "web:build": "vite build",
     "build": "npm run typecheck && vite build",
