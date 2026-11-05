@@ -9,6 +9,20 @@ O app nunca distribui o jogo: ele usa só o patch (`.xdelta`) da tradução.
 
 > Em desenvolvimento.
 
+## Baixar
+
+Baixe a versão mais recente na [página de releases](https://github.com/LamarcKz/Tradumix/releases/latest):
+
+- **Instalador** (`Tradumix_<versão>_x64-setup.exe`): instala só para o seu usuário, sem pedir permissão de administrador.
+- **Portátil** (`Tradumix-<versão>-portable.zip`): extraia e abra o `Tradumix.exe`; os dados ficam na pasta `dados`, ao lado.
+
+O Tradumix ainda não tem assinatura de código, então o Windows pode avisar que o app não é
+conhecido ("O Windows protegeu o computador"). Para abrir mesmo assim, clique em
+**Mais informações** e depois em **Executar assim mesmo**.
+
+As traduções vêm do [catálogo público](https://github.com/LamarcKz/Tradumix-catalogo). O app avisa
+quando sai uma versão nova, e você escolhe quando atualizar.
+
 ## Estrutura
 
 | Pasta | O que é |
@@ -62,6 +76,10 @@ parte, com as variáveis `TRADUMIX_PACOTES`, `TRADUMIX_ISO_JAK2`, `TRADUMIX_SAID
 ```
 cargo test -p nucleo --test jak2_real --test catalogo -- --ignored
 ```
+
+## Contribuir
+
+Veja [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licença
 
