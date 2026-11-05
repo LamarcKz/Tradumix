@@ -6,7 +6,8 @@ O app lê um índice público com todas as traduções publicadas. Por padrão:
 https://raw.githubusercontent.com/LamarcKz/Tradumix-catalogo/main/indice.json
 ```
 
-O endereço pode ser trocado em `config.json` (`url_catalogo`), na pasta de dados do app.
+O endereço pode ser trocado pela preferência `url_catalogo` no banco do app (`tradumix.db`, tabela
+`preferencias`), na pasta de dados.
 
 ```json
 {

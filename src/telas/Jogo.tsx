@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 
 import * as api from "../api"
-import type { Conferencia, EstadoTraducao, Jogo } from "../tipos"
+import type { Conferencia, Jogo } from "../tipos"
 import { Caixa } from "./Caixa"
 import { FundoJogo } from "./FundoJogo"
 
@@ -25,7 +25,10 @@ interface Props {
   aoTraduzir: (pedido: PedidoTraducao) => void
 }
 
-const NOME_ESTADO: Record<EstadoTraducao, string> = { rascunho: "Rascunho", beta: "Beta", publicada: "Publicada" }
+/** O texto do link nos créditos: o endereço sem "https://" e sem "www." (ex.: github.com/LamarcKz). */
+function textoDoLink(link: string) {
+  return link.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")
+}
 
 function nomeDoArquivo(caminho: string) {
   return caminho.split(/[\\/]/).pop() ?? caminho
@@ -121,11 +124,6 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
             <h1 className="titulo text-6xl">{jogo.nome}</h1>
             <p className="mt-3 text-suave">
               Tradução {traducao.idioma.toUpperCase()} versão {traducao.versao}, para a versão {traducao.regiao} ({traducao.serial})
-              {traducao.estado !== "publicada" && (
-                <span className="ml-2 rounded border border-borda px-1.5 py-0.5 text-xs text-suave">
-                  {NOME_ESTADO[traducao.estado]}
-                </span>
-              )}
             </p>
 
             {jogo.traducoes.length > 1 && (
@@ -145,16 +143,11 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
                         }}
                       />
                       {t.idioma.toUpperCase()} v{t.versao} ({t.regiao}), por {t.tradutores.map((x) => x.nome).join(", ")}
-                      {t.origem === "rascunho" && (
-                        <span className="rounded border border-dashed border-sutil px-1.5 py-0.5 text-xs text-suave">Rascunho</span>
-                      )}
                     </label>
                   ))}
                 </div>
               </fieldset>
             )}
-
-            {traducao.descricao && <p className="mt-6 text-lg leading-relaxed">{traducao.descricao}</p>}
 
             {traducao.traduzido.length > 0 && (
               <section className="mt-8">
@@ -171,7 +164,7 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
 
             {traducao.limitacoes.length > 0 && (
               <section className="mt-8">
-                <h2 className="font-semibold">Limitações</h2>
+                <h2 className="font-semibold">O que não foi traduzido</h2>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-suave">
                   {traducao.limitacoes.map((item) => (
                     <li key={item}>{item}</li>
@@ -184,13 +177,12 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
               <h2 className="font-semibold">Créditos</h2>
               <ul className="mt-2 space-y-1">
                 {traducao.tradutores.map((t) => (
-                  <li key={t.nome}>
-                    {t.link ? (
-                      <a href={t.link} target="_blank" rel="noreferrer" className="underline decoration-sutil underline-offset-4 hover:decoration-texto">
-                        {t.nome}
+                  <li key={t.nome} className="flex flex-wrap items-baseline gap-x-3">
+                    <span className="font-semibold">{t.nome}</span>
+                    {t.link && (
+                      <a href={t.link} target="_blank" rel="noreferrer" className="text-sm text-suave underline decoration-sutil underline-offset-4 hover:text-texto hover:decoration-texto">
+                        {textoDoLink(t.link)}
                       </a>
-                    ) : (
-                      t.nome
                     )}
                   </li>
                 ))}

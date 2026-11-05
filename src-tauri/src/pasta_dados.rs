@@ -1,4 +1,4 @@
-//! Onde ficam os dados do app (config.json, o catálogo baixado e o histórico), como no PlayTrove:
+//! Onde ficam os dados do app (o banco `tradumix.db` e o catálogo baixado), como no PlayTrove:
 //! - app instalado: a pasta padrão do Windows (`%APPDATA%\io.github.tradumix`);
 //! - versão portátil (o `.zip`, com `portable.txt` ao lado do `.exe`): a pasta `dados` ali do lado;
 //! - `npm run dev`: uma cópia da pasta do app instalado, ao lado dela (`... Dev`), para o código em
@@ -42,8 +42,23 @@ pub fn preparar_copia_de_desenvolvimento(real: &Path, dev: &Path) -> io::Result<
     }
     if real.is_dir() {
         copiar_pasta(real, dev)?;
+        copiar_banco(real, dev)?;
     }
     fs::create_dir_all(dev)
+}
+
+/// O banco vai por `VACUUM INTO` (como no PlayTrove): grava uma cópia inteira e coerente mesmo com o
+/// app instalado aberto e gravando, coisa que copiar o arquivo não garante.
+fn copiar_banco(real: &Path, dev: &Path) -> io::Result<()> {
+    let origem = real.join(crate::banco::ARQUIVO_BANCO);
+    if !origem.is_file() {
+        return Ok(());
+    }
+    let erro = |e: rusqlite::Error| io::Error::other(e.to_string());
+    let banco = rusqlite::Connection::open_with_flags(&origem, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(erro)?;
+    let destino = dev.join(crate::banco::ARQUIVO_BANCO);
+    banco.execute("VACUUM INTO ?1", [destino.to_string_lossy()]).map_err(erro)?;
+    Ok(())
 }
 
 fn pasta_portatil(exe: &Path) -> Option<PathBuf> {
@@ -51,7 +66,8 @@ fn pasta_portatil(exe: &Path) -> Option<PathBuf> {
     pasta.join(MARCADOR_PORTATIL).is_file().then(|| pasta.join(PASTA_PORTATIL))
 }
 
-/// Copia a pasta inteira, menos os downloads pela metade (`.parcial`), que não servem para nada.
+/// Copia a pasta inteira, menos os downloads pela metade (`.parcial`), que não servem para nada, e o
+/// banco com os arquivos do SQLite ao lado dele (o banco vai à parte, por `copiar_banco`).
 fn copiar_pasta(de: &Path, para: &Path) -> io::Result<()> {
     fs::create_dir_all(para)?;
     for item in fs::read_dir(de)? {
@@ -60,7 +76,9 @@ fn copiar_pasta(de: &Path, para: &Path) -> io::Result<()> {
         let destino = para.join(item.file_name());
         if item.file_type()?.is_dir() {
             copiar_pasta(&origem, &destino)?;
-        } else if origem.extension().is_none_or(|e| e != "parcial") {
+        } else if origem.extension().is_none_or(|e| e != "parcial")
+            && !item.file_name().to_string_lossy().starts_with(crate::banco::ARQUIVO_BANCO)
+        {
             fs::copy(&origem, &destino)?;
         }
     }
@@ -147,5 +165,24 @@ mod testes {
         preparar_copia_de_desenvolvimento(&real, &dev).unwrap();
         assert!(dev.is_dir());
         assert!(!real.exists());
+    }
+
+    #[test]
+    fn desenvolvimento_copia_o_banco_inteiro_e_sem_o_diario_do_sqlite() {
+        let pasta = tempfile::tempdir().unwrap();
+        let real = pasta.path().join("io.github.tradumix");
+        crate::banco::Banco::abrir(&real).unwrap().definir_preferencia("mostrar_trailers", "nao").unwrap();
+        // O app instalado aberto, no meio de uma gravação ainda não salva: o SQLite deixa o diário
+        // (tradumix.db-journal) ao lado do banco enquanto isso.
+        let instalado = rusqlite::Connection::open(real.join("tradumix.db")).unwrap();
+        instalado.execute_batch("BEGIN; UPDATE preferencias SET valor = 'sim' WHERE chave = 'mostrar_trailers';").unwrap();
+        assert!(real.join("tradumix.db-journal").exists());
+        let dev = pasta_de_desenvolvimento(&real);
+
+        preparar_copia_de_desenvolvimento(&real, &dev).unwrap();
+        assert!(!dev.join("tradumix.db-journal").exists(), "o diário não pode ir junto");
+        let copia = crate::banco::Banco::abrir(&dev).unwrap();
+        assert_eq!(copia.preferencia("mostrar_trailers").as_deref(), Some("nao"), "só o que já estava salvo");
+        drop(instalado);
     }
 }

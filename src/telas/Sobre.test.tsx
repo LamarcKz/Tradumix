@@ -43,6 +43,6 @@ it("sobre_tem_links", async () => {
 it("sobre_volta", async () => {
   const aoVoltar = vi.fn()
   render(<Sobre aoVoltar={aoVoltar} />)
-  await userEvent.click(screen.getByRole("button", { name: "← Traduções" }))
+  await userEvent.click(screen.getByRole("button", { name: "← Configurações" }))
   expect(aoVoltar).toHaveBeenCalled()
 })

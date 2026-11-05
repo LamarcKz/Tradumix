@@ -1,12 +1,11 @@
 interface Props {
   mostrarTrailers: boolean
   aoAlterarTrailers: (mostrar: boolean) => void
-  pasta: string | null
-  aoTrocarPasta: () => void
+  aoAbrirSobre: () => void
   aoVoltar: () => void
 }
 
-export function Configuracoes({ mostrarTrailers, aoAlterarTrailers, pasta, aoTrocarPasta, aoVoltar }: Props) {
+export function Configuracoes({ mostrarTrailers, aoAlterarTrailers, aoAbrirSobre, aoVoltar }: Props) {
   return (
     <section className="max-w-2xl px-10 pb-16 pt-6">
       <button onClick={aoVoltar} className="text-sm text-suave hover:text-texto">
@@ -36,15 +35,10 @@ export function Configuracoes({ mostrarTrailers, aoAlterarTrailers, pasta, aoTro
       </div>
 
       <div className="mt-10 border-t border-borda pt-6">
-        <h2 className="font-semibold">Pasta de rascunhos (modo de teste)</h2>
-        <p className="mt-1 text-sm text-suave">
-          O Tradumix mostra as traduções que estão nesta pasta. Cada tradução fica numa subpasta com o ficha.json e o
-          patch.
-        </p>
-        <p className="mt-4 break-all rounded-md bg-superficie px-4 py-3 text-sm">{pasta ?? "Nenhuma pasta escolhida"}</p>
-        <button onClick={aoTrocarPasta} className="mt-3 rounded-md border border-borda px-4 py-2 hover:border-destaque">
-          {pasta ? "Trocar pasta" : "Escolher pasta"}
+        <button onClick={aoAbrirSobre} className="rounded-md border border-borda px-4 py-2 hover:border-destaque">
+          Sobre o Tradumix
         </button>
+        <p className="mt-2 text-sm text-suave">Versão, licenças e créditos.</p>
       </div>
     </section>
   )

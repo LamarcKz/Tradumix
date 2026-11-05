@@ -16,7 +16,7 @@ export function Sobre({ aoVoltar }: { aoVoltar: () => void }) {
   return (
     <section className="max-w-2xl px-10 pb-16 pt-6">
       <button onClick={aoVoltar} className="text-sm text-suave hover:text-texto">
-        ← Traduções
+        ← Configurações
       </button>
       <h1 className="titulo mt-8 text-5xl">Sobre</h1>
       {app && (

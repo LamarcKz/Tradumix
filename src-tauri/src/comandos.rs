@@ -1,19 +1,20 @@
 //! Comandos que a interface chama. Cada um é uma função interna testável mais um envoltório Tauri.
 //!
-//! As traduções vêm de duas fontes: o catálogo (sincronizado para `<dados>/catalogo`) e, no modo
-//! de teste, a pasta de rascunhos. Um rascunho é identificado como `rascunho:<id>` para não se
-//! confundir com a mesma tradução publicada.
+//! O app mostra só as traduções do catálogo (sincronizado para `<dados>/catalogo`). As funções de
+//! lista ainda aceitam uma pasta de rascunhos (`rascunho:<id>`), usada nos testes e guardada para a
+//! futura ferramenta de publicação; o app sempre passa `None`.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use base64::Engine;
-use nucleo::{Atualizacao, Erro, Estado as EstadoTraducao, Historico, Imagem, Pacote, Pedido, RedeUreq, Resultado, Sincronizacao, Tradutor};
+use nucleo::{Atualizacao, Entrada, Erro, Estado as EstadoTraducao, Historico, Imagem, Pacote, Pedido, RedeUreq, Resultado, Sincronizacao, Tradutor};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::config::Config;
+use crate::banco::Banco;
 
 const URL_CATALOGO: &str = "https://raw.githubusercontent.com/LamarcKz/Tradumix-catalogo/main/indice.json";
 const PREFIXO_RASCUNHO: &str = "rascunho:";
@@ -21,7 +22,7 @@ const PREFIXO_RASCUNHO: &str = "rascunho:";
 /// Estado compartilhado do app.
 pub struct Estado {
     dados: PathBuf,
-    config: Mutex<Config>,
+    banco: Banco,
     sincronizacao: Mutex<Option<Sincronizacao>>,
     cancelar: Arc<AtomicBool>,
     traduzindo: Arc<AtomicBool>,
@@ -29,20 +30,50 @@ pub struct Estado {
     /// Protege a troca conjunta de `traduzindo` e `sincronizando`.
     trava: Mutex<()>,
     fechar_ao_terminar: Arc<AtomicBool>,
+    vistos: Vistos,
+}
+
+/// O selo "Novo" só aparece na primeira abertura do app em que a tradução aparece (e só dentro dos 14
+/// dias da publicação). As já vistas ficam na tabela `vistos` do banco; o que já tinha sido visto
+/// quando o app abriu perde o selo, e o que aparece pela primeira vez fica com ele até fechar.
+pub struct Vistos {
+    no_inicio: HashSet<String>,
+}
+
+impl Vistos {
+    pub fn carregar(banco: &Banco) -> Vistos {
+        Vistos { no_inicio: banco.vistos() }
+    }
+
+    /// Tira o "Novo" do que já tinha sido visto e grava como visto tudo o que está na lista.
+    pub fn marcar(&self, lista: &mut ListaJogos, banco: &Banco) {
+        let mut ids = Vec::new();
+        for t in lista.jogos.iter_mut().flat_map(|j| j.traducoes.iter_mut()) {
+            if self.no_inicio.contains(&t.id) {
+                t.novo = false;
+            }
+            ids.push(t.id.clone());
+        }
+        // Sem conseguir gravar, o pior que acontece é o selo aparecer de novo na próxima abertura.
+        let _ = banco.marcar_vistos(&ids);
+    }
 }
 
 impl Estado {
     pub fn novo(dados: PathBuf) -> Estado {
-        let config = Config::carregar(&dados.join("config.json"));
+        // Sem conseguir abrir o banco na pasta de dados, o app funciona sem guardar nada.
+        let banco = Banco::abrir(&dados).unwrap_or_else(|_| Banco::na_memoria());
+        let vistos = Vistos::carregar(&banco);
         Estado {
             dados,
-            config: Mutex::new(config),
+            banco,
             sincronizacao: Mutex::new(None),
             cancelar: Arc::new(AtomicBool::new(false)),
             traduzindo: Arc::new(AtomicBool::new(false)),
             sincronizando: AtomicBool::new(false),
             trava: Mutex::new(()),
             fechar_ao_terminar: Arc::new(AtomicBool::new(false)),
+            vistos,
         }
     }
 
@@ -81,20 +112,12 @@ impl Estado {
         true
     }
 
-    fn pasta_rascunhos(&self) -> Option<PathBuf> {
-        self.config.lock().unwrap().pasta_rascunhos.clone()
-    }
-
     fn url_catalogo(&self) -> String {
-        self.config.lock().unwrap().url_catalogo.clone().unwrap_or_else(|| URL_CATALOGO.to_string())
+        self.banco.preferencia("url_catalogo").unwrap_or_else(|| URL_CATALOGO.to_string())
     }
 
     fn cache(&self) -> PathBuf {
         self.dados.join("catalogo")
-    }
-
-    fn arquivo_historico(&self) -> PathBuf {
-        self.dados.join("historico.json")
     }
 
     fn sincronizacao(&self) -> Sincronizacao {
@@ -102,20 +125,19 @@ impl Estado {
     }
 
     fn lista(&self) -> ListaJogos {
-        let historico = Historico::carregar(&self.arquivo_historico());
-        let mut lista = montar_lista(&self.cache(), self.pasta_rascunhos().as_deref(), &historico, &self.sincronizacao(), &hoje());
-        lista.mostrar_trailers = self.config.lock().unwrap().mostrar_trailers.unwrap_or(true);
+        let historico = self.banco.historico();
+        let mut lista = montar_lista(&self.cache(), None, &historico, &self.sincronizacao(), &hoje());
+        lista.mostrar_trailers = self.banco.preferencia("mostrar_trailers").as_deref() != Some("nao");
+        self.vistos.marcar(&mut lista, &self.banco);
         lista
     }
 
     pub fn definir_trailers(&self, mostrar: bool) -> Result<(), String> {
-        let mut config = self.config.lock().unwrap();
-        config.mostrar_trailers = Some(mostrar);
-        config.salvar(&self.dados.join("config.json"))
+        self.banco.definir_preferencia("mostrar_trailers", if mostrar { "sim" } else { "nao" })
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TraducaoDto {
     pub id: String,
     pub origem: &'static str,
@@ -139,7 +161,7 @@ pub struct TraducaoDto {
     pub trailer_youtube: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct JogoDto {
     pub id: String,
     pub nome: String,
@@ -148,13 +170,13 @@ pub struct JogoDto {
     pub traducoes: Vec<TraducaoDto>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct InvalidoDto {
     pub pasta: String,
     pub motivo: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ListaJogos {
     pub jogos: Vec<JogoDto>,
     pub invalidos: Vec<InvalidoDto>,
@@ -320,18 +342,8 @@ pub async fn sincronizar_catalogo(estado: State<'_, Estado>) -> Result<ListaJogo
 }
 
 #[tauri::command]
-pub fn escolher_pasta_rascunhos(estado: State<'_, Estado>, caminho: String) -> Result<ListaJogos, String> {
-    {
-        let mut config = estado.config.lock().unwrap();
-        config.pasta_rascunhos = Some(PathBuf::from(&caminho));
-        config.salvar(&estado.dados.join("config.json"))?;
-    }
-    Ok(estado.lista())
-}
-
-#[tauri::command]
 pub fn conferir_iso(estado: State<'_, Estado>, pacote_id: String, iso: String) -> Result<ConferenciaDto, String> {
-    let pacote = achar_pacote(&estado.cache(), estado.pasta_rascunhos().as_deref(), &pacote_id).ok_or("Tradução não encontrada.")?;
+    let pacote = achar_pacote(&estado.cache(), None, &pacote_id).ok_or("Tradução não encontrada.")?;
     Ok(conferir_interno(&pacote, Path::new(&iso)))
 }
 
@@ -352,10 +364,9 @@ pub async fn traduzir(
     let app_fim = app.clone();
     let cancelar = estado.cancelar.clone();
     cancelar.store(false, Ordering::SeqCst);
-    let (cache, rascunhos) = (estado.cache(), estado.pasta_rascunhos());
-    let arquivo_historico = estado.arquivo_historico();
-    let tarefa = tauri::async_runtime::spawn_blocking(move || -> Result<Resultado, String> {
-        let pacote = achar_pacote(&cache, rascunhos.as_deref(), &pacote_id).ok_or("Tradução não encontrada.")?;
+    let cache = estado.cache();
+    let tarefa = tauri::async_runtime::spawn_blocking(move || -> Result<(Resultado, Entrada), String> {
+        let pacote = achar_pacote(&cache, None, &pacote_id).ok_or("Tradução não encontrada.")?;
         let pedido = Pedido { iso_original: PathBuf::from(iso), saida: PathBuf::from(saida), sobrescrever, xdelta3: caminho_xdelta3()? };
         let rede = RedeUreq::novo();
         let resultado = nucleo::aplicar_com_rede(
@@ -368,12 +379,13 @@ pub async fn traduzir(
             &cancelar,
         )
         .map_err(|e: Erro| e.mensagem())?;
-        let mut historico = Historico::carregar(&arquivo_historico);
-        historico.registrar(&pacote, &resultado, &hoje());
-        let _ = historico.salvar(&arquivo_historico);
-        Ok(resultado)
+        let entrada = Entrada { pacote_id: pacote.ficha.id.clone(), versao: pacote.ficha.versao.clone(), saida: resultado.saida.clone(), data: hoje() };
+        Ok((resultado, entrada))
     });
-    let resultado = tarefa.await.map_err(|e| e.to_string()).and_then(|r| r);
+    let resultado = tarefa.await.map_err(|e| e.to_string()).and_then(|r| r).map(|(resultado, entrada)| {
+        let _ = estado.banco.registrar_traducao(&entrada);
+        resultado
+    });
     traduzindo.store(false, Ordering::SeqCst);
     if fechar_ao_terminar.load(Ordering::SeqCst) {
         app_fim.exit(0);
@@ -541,14 +553,6 @@ mod testes {
 
     /// Os links dos créditos abrem no navegador pelo plugin opener; sem esta permissão o clique não faz nada.
     #[test]
-    fn janela_pode_abrir_links_dos_creditos() {
-        let texto = include_str!("../capabilities/default.json");
-        let json: serde_json::Value = serde_json::from_str(texto).unwrap();
-        let permissoes: Vec<&str> = json["permissions"].as_array().unwrap().iter().filter_map(|p| p.as_str()).collect();
-        assert!(permissoes.contains(&"opener:allow-open-url"), "{permissoes:?}");
-    }
-
-    #[test]
     fn sincronizacao_nao_roda_em_dobro_nem_durante_traducao() {
         let dados = tempfile::tempdir().unwrap();
         let estado = Estado::novo(dados.path().to_path_buf());
@@ -629,5 +633,89 @@ mod testes {
         );
         fs::write(pasta.path().join("xdelta3.exe"), b"MZ").unwrap();
         assert_eq!(xdelta3_na_pasta(pasta.path()).unwrap(), pasta.path().join("xdelta3.exe"));
+    }
+
+    #[test]
+    fn app_ignora_a_pasta_de_rascunhos_de_um_config_antigo() {
+        let dados = tempfile::tempdir().unwrap();
+        let rascunhos = tempfile::tempdir().unwrap();
+        pasta_com_pacote(rascunhos.path(), HASH);
+        let config = serde_json::json!({ "pasta_rascunhos": rascunhos.path() });
+        fs::write(dados.path().join("config.json"), config.to_string()).unwrap();
+        let estado = Estado::novo(dados.path().to_path_buf());
+        let lista = estado.lista();
+        assert!(lista.jogos.is_empty(), "{:?}", lista.jogos.iter().map(|j| &j.nome).collect::<Vec<_>>());
+        assert!(lista.invalidos.is_empty());
+    }
+
+    /// Catálogo com duas traduções novas (dentro dos 14 dias), uma de cada jogo.
+    fn lista_com_dois_novos(cache: &Path) -> (Servidor, ListaJogos) {
+        let s = Servidor::novo();
+        let jak = comum::ficha_catalogo("jak2-usa-ptbr", "1.0", &s.url(""), HASH, 100, b"PATCH", None);
+        let sly = jak.replace(r#""id":"jak2","nome":"Jak II""#, r#""id":"sly","nome":"Sly Cooper""#).replace("jak2-usa-ptbr", "sly-ptbr");
+        s.definir("/indice.json", Resposta::Ok(comum::indice(&[jak, sly])));
+        let sinc = sincronizar_interno(cache, &s.url("/indice.json"));
+        let lista = montar_lista(cache, None, &Historico::default(), &sinc, HOJE);
+        assert!(lista.jogos.iter().all(|j| j.traducoes[0].novo), "as duas estão dentro dos 14 dias");
+        (s, lista)
+    }
+
+    fn novos(lista: &ListaJogos) -> Vec<&str> {
+        lista.jogos.iter().flat_map(|j| &j.traducoes).filter(|t| t.novo).map(|t| t.id.as_str()).collect()
+    }
+
+    #[test]
+    fn novo_so_na_primeira_vez_que_aparece() {
+        let cache = tempfile::tempdir().unwrap();
+        let dados = tempfile::tempdir().unwrap();
+        let (_s, lista) = lista_com_dois_novos(cache.path());
+
+        // Primeira abertura: aparece como novo, e continua assim enquanto o app estiver aberto.
+        let banco = Banco::abrir(dados.path()).unwrap();
+        let vistos = Vistos::carregar(&banco);
+        let mut primeira = lista.clone();
+        vistos.marcar(&mut primeira, &banco);
+        assert_eq!(novos(&primeira), vec!["jak2-usa-ptbr", "sly-ptbr"]);
+        let mut de_novo = lista.clone();
+        vistos.marcar(&mut de_novo, &banco);
+        assert_eq!(novos(&de_novo).len(), 2, "na mesma abertura o selo não some de repente");
+        drop(banco);
+
+        // Próxima abertura do app: já foi visto.
+        let banco = Banco::abrir(dados.path()).unwrap();
+        let mut depois = lista.clone();
+        Vistos::carregar(&banco).marcar(&mut depois, &banco);
+        assert!(novos(&depois).is_empty());
+    }
+
+    #[test]
+    fn jogo_que_chega_depois_aparece_como_novo() {
+        let cache = tempfile::tempdir().unwrap();
+        let dados = tempfile::tempdir().unwrap();
+        let (_s, lista) = lista_com_dois_novos(cache.path());
+        let banco = Banco::abrir(dados.path()).unwrap();
+        banco.marcar_vistos(&["jak2-usa-ptbr".to_string()]).unwrap();
+        let mut agora = lista.clone();
+        Vistos::carregar(&banco).marcar(&mut agora, &banco);
+        assert_eq!(novos(&agora), vec!["sly-ptbr"]);
+        let mut depois = lista.clone();
+        Vistos::carregar(&banco).marcar(&mut depois, &banco);
+        assert!(novos(&depois).is_empty());
+    }
+
+    #[test]
+    fn novo_some_pelo_estado_do_app_na_abertura_seguinte() {
+        let cache = tempfile::tempdir().unwrap();
+        let (_s, lista) = lista_com_dois_novos(cache.path());
+        let dados = tempfile::tempdir().unwrap();
+        let banco = Banco::abrir(dados.path()).unwrap();
+        let mut primeira = lista.clone();
+        Vistos::carregar(&banco).marcar(&mut primeira, &banco);
+        drop(banco);
+        // O Estado de uma nova abertura lê os vistos do mesmo banco.
+        let estado = Estado::novo(dados.path().to_path_buf());
+        let mut segunda = lista.clone();
+        estado.vistos.marcar(&mut segunda, &estado.banco);
+        assert!(novos(&segunda).is_empty());
     }
 }

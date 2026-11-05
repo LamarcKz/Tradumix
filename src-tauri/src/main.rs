@@ -2,8 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod atualizacao;
+mod banco;
 mod comandos;
-mod config;
 mod pasta_dados;
 
 use tauri::Manager;
@@ -34,7 +34,6 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             comandos::listar_jogos,
             comandos::sincronizar_catalogo,
-            comandos::escolher_pasta_rascunhos,
             comandos::definir_mostrar_trailers,
             comandos::conferir_iso,
             comandos::traduzir,
@@ -47,4 +46,21 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o Tradumix");
+}
+
+#[cfg(test)]
+mod testes {
+    /// Os links dos créditos e da tela Sobre abrem no navegador pelo plugin opener, que só abre os
+    /// endereços da lista da permissão: sem lista, nenhum clique faz nada.
+    #[test]
+    fn links_https_podem_abrir_no_navegador() {
+        let capacidade: serde_json::Value = serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let permissoes = capacidade["permissions"].as_array().unwrap();
+        let abrir = permissoes
+            .iter()
+            .find(|p| p["identifier"] == "opener:allow-open-url")
+            .expect("permissão opener:allow-open-url com a lista de endereços");
+        let enderecos: Vec<&str> = abrir["allow"].as_array().unwrap().iter().filter_map(|e| e["url"].as_str()).collect();
+        assert_eq!(enderecos, vec!["https://*"]);
+    }
 }
