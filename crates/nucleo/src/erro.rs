@@ -36,6 +36,10 @@ pub enum Erro {
     VersaoDiferente { esperado_nome: String, serial: String },
     #[error("índice do catálogo inválido: {0}")]
     IndiceInvalido(String),
+    #[error("erro de rede: {0}")]
+    Rede(String),
+    #[error("download inválido: {0}")]
+    DownloadInvalido(String),
 }
 
 impl Erro {
@@ -68,6 +72,8 @@ impl Erro {
                 "Esta ISO é do jogo certo ({serial}), mas de outra versão do disco: o executável é diferente do usado na tradução. Esta tradução precisa da {esperado_nome} original."
             ),
             Erro::IndiceInvalido(m) => format!("O catálogo de traduções veio com erro: {m}"),
+            Erro::Rede(m) => format!("Não foi possível baixar da internet. Confira a conexão e tente de novo. Detalhe: {m}"),
+            Erro::DownloadInvalido(m) => format!("O arquivo baixado veio diferente do esperado e foi descartado. Tente de novo. Detalhe: {m}"),
             Erro::JaTraduzida => {
                 "Esta ISO já está com esta tradução. Para gerar de novo, selecione a ISO original, sem tradução.".into()
             }

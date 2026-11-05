@@ -1,5 +1,35 @@
-//! Utilidades só dos testes: monta ISOs ISO9660 pequenas em memória.
+//! Utilidades só dos testes: ISOs ISO9660 pequenas em memória, servidor HTTP e fichas do catálogo.
 #![allow(dead_code)]
+
+pub mod servidor;
+
+pub const HASH_RA: &str = "f51c94dd47cc2eb385d5733389428121";
+
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// Ficha do catálogo com download apontando para `base` (`/<id>/patch`, `/<id>/capa`).
+pub fn ficha_catalogo(id: &str, versao: &str, base: &str, hash_ra: &str, tamanho_iso: u64, patch: &[u8], capa: Option<&[u8]>) -> String {
+    let capa_dl = capa
+        .map(|c| format!(r#","capa":{{"url":"{base}/{id}/capa","sha256":"{}","tamanho":{}}}"#, sha256_hex(c), c.len()))
+        .unwrap_or_default();
+    format!(
+        r#"{{"formato":1,"id":"{id}","jogo":{{"id":"jak2","nome":"Jak II","console":"ps2"}},"versao":"{versao}","estado":"beta",
+        "idioma":"pt-BR","data":"2026-11-05",
+        "origem":{{"serial":"SCUS-97265","regiao":"usa","hash_ra":"{hash_ra}","tamanho":{tamanho_iso}}},
+        "resultado":{{"hash_ra":"{hash_ra}","tamanho":{tamanho_iso}}},"tradutores":[{{"nome":"Fulano"}}],
+        "arquivos":{{"patch":"patch.xdelta","capa":"capa.jpg"}},
+        "download":{{"patch":{{"url":"{base}/{id}/patch","sha256":"{}","tamanho":{}}}{capa_dl}}}}}"#,
+        sha256_hex(patch),
+        patch.len()
+    )
+}
+
+pub fn indice(fichas: &[String]) -> Vec<u8> {
+    format!(r#"{{"formato":1,"atualizado":"2026-11-05","traducoes":[{}]}}"#, fichas.join(",")).into_bytes()
+}
 
 const SETOR: usize = 2048;
 
