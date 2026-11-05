@@ -28,12 +28,32 @@
       "csp": null
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDU0MThBRjE5MkUzMzExMUQKUldRZEVUTXVHYThZVkxDb3ZMN1ZObFlXVmZ6SjRBSmZsWGhnUEtiSW1SUXk1Qk5yWE1oTk1GR3QK",
+      "endpoints": ["https://github.com/LamarcKz/Tradumix/releases/latest/download/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  },
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
+    "publisher": "LamarcKz",
+    "copyright": "Copyright © 2026 LamarcKz",
+    "homepage": "https://github.com/LamarcKz/Tradumix",
     "category": "Game",
     "shortDescription": "Traduções de jogos de PS2 que preservam o hash do RetroAchievements.",
     "icon": ["icons/icon.ico", "icons/icon.png"],
-    "externalBin": ["binaries/xdelta3"]
+    "externalBin": ["binaries/xdelta3"],
+    "resources": { "licencas/xdelta3-LICENSE.txt": "licencas/xdelta3-LICENSE.txt" },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": ["PortugueseBR"]
+      }
+    }
   }
 }

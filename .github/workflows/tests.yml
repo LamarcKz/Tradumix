@@ -1,0 +1,49 @@
+# Os testes no GitHub: a cada envio para a main ou para a desenvolvimento, e a cada Pull Request, o
+# GitHub liga um Windows limpo, instala o projeto do zero e roda todos os testes (npm test). O
+# resultado vira o selo ✓ ou ✗ ao lado do commit e nos Pull Requests; cada rodada fica na aba Actions.
+name: Tests
+
+on:
+  push:
+    branches: [main, desenvolvimento]
+  pull_request:
+
+# Só lê o repositório.
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      # Instala exatamente o que está no package-lock.json.
+      - name: Install dependencies
+        run: npm ci
+
+      # O Rust já vem no Windows do GitHub: aqui, a versão estável mais nova e o que já foi compilado
+      # nas rodadas anteriores.
+      - name: Set up Rust
+        run: rustup update stable --no-self-update && rustup default stable
+
+      - name: Reuse the Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          cache-on-failure: true
+
+      # O xdelta3 oficial, conferido pelo SHA-256: os testes de aplicar o usam.
+      - name: Get xdelta3
+        run: npm run xdelta3
+
+      - name: Run all tests
+        run: npm test

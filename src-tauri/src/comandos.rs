@@ -290,8 +290,16 @@ pub fn conferir_interno(pacote: &Pacote, iso: &Path) -> ConferenciaDto {
 /// O xdelta3 vai ao lado do executável do app (sidecar do Tauri).
 fn caminho_xdelta3() -> Result<PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let caminho = exe.parent().ok_or("pasta do app desconhecida")?.join("xdelta3.exe");
-    if caminho.is_file() { Ok(caminho) } else { Err("O xdelta3 não foi encontrado junto do app.".into()) }
+    xdelta3_na_pasta(exe.parent().ok_or("pasta do app desconhecida")?)
+}
+
+fn xdelta3_na_pasta(pasta: &Path) -> Result<PathBuf, String> {
+    let caminho = pasta.join("xdelta3.exe");
+    if caminho.is_file() {
+        Ok(caminho)
+    } else {
+        Err("O componente que aplica a tradução (xdelta3) não foi encontrado. Reinstale o Tradumix.".into())
+    }
 }
 
 #[tauri::command]
@@ -610,5 +618,16 @@ mod testes {
         assert!(c.serve, "{:?}", c.mensagem);
         assert_eq!(c.saida_sugerida, raiz.path().join("Jak II (USA) PT-BR v1.0.iso").to_string_lossy());
         assert!(!c.ja_existe);
+    }
+
+    #[test]
+    fn sem_xdelta3_a_mensagem_explica() {
+        let pasta = tempfile::tempdir().unwrap();
+        assert_eq!(
+            xdelta3_na_pasta(pasta.path()).unwrap_err(),
+            "O componente que aplica a tradução (xdelta3) não foi encontrado. Reinstale o Tradumix."
+        );
+        fs::write(pasta.path().join("xdelta3.exe"), b"MZ").unwrap();
+        assert_eq!(xdelta3_na_pasta(pasta.path()).unwrap(), pasta.path().join("xdelta3.exe"));
     }
 }

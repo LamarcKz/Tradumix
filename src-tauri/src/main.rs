@@ -1,8 +1,10 @@
 // Sem janela de console no app de release.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod atualizacao;
 mod comandos;
 mod config;
+mod pasta_dados;
 
 use tauri::Manager;
 
@@ -10,8 +12,15 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(atualizacao::Atualizacao::default())
         .setup(|app| {
-            let dados = app.path().app_data_dir()?;
+            let instalado = app.path().app_data_dir()?;
+            let desenvolvimento = cfg!(debug_assertions);
+            let dados = pasta_dados::pasta_de_dados(&std::env::current_exe()?, instalado.clone(), desenvolvimento);
+            if desenvolvimento {
+                pasta_dados::preparar_copia_de_desenvolvimento(&instalado, &dados)?;
+            }
             app.manage(comandos::Estado::novo(dados));
             Ok(())
         })
@@ -32,6 +41,9 @@ fn main() {
             comandos::cancelar_traducao,
             comandos::arquivo_existe,
             comandos::abrir_pasta,
+            atualizacao::procurar_versao_nova,
+            atualizacao::instalar_versao_nova,
+            atualizacao::versao_do_app,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o Tradumix");

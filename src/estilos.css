@@ -16,6 +16,7 @@
   --color-verde: #8fd3a3;
   --color-erro: #e8a59c;
   --color-caixa: #000000;
+  --color-dev: #f2b84b; /* a marca DEV do npm run dev */
   --font-sans: "Manrope Variable", Arial, sans-serif;
 }
 
