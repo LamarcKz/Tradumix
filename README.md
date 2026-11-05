@@ -44,8 +44,11 @@ npm run xdelta3
 npm run dev
 ```
 
-`npm run xdelta3` baixa o [xdelta3](https://github.com/jmacd/xdelta) 3.2.2 (Apache 2.0) e grava
-em `src-tauri/binaries/`, onde o Tauri o leva junto com o app.
+`npm run xdelta3` baixa o [xdelta3](https://github.com/jmacd/xdelta) 3.2.2 (Apache 2.0), confere o
+SHA-256 e grava em `src-tauri/binaries/`, onde o Tauri o leva junto com o app. Ele vem da release
+`xdelta3-v3.2.2` deste repositório, compilada do código oficial pelo workflow
+[`xdelta3.yml`](.github/workflows/xdelta3.yml) com as opções da release oficial e a biblioteca do C
+dentro do `.exe`, para não depender do `VCRUNTIME140.dll`.
 
 ## Catálogo
 
