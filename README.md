@@ -7,7 +7,7 @@ continuam funcionando.
 
 O app nunca distribui o jogo: ele usa só o patch (`.xdelta`) da tradução.
 
-> Em desenvolvimento. Nesta versão as traduções vêm de uma pasta local de rascunhos (modo de teste).
+> Em desenvolvimento.
 
 ## Estrutura
 
@@ -18,6 +18,7 @@ O app nunca distribui o jogo: ele usa só o patch (`.xdelta`) da tradução.
 | `src` | A interface em React: início, página do jogo, progresso, pronto e configurações. |
 | `scripts` | `baixar-xdelta3.mjs`: baixa o xdelta3 oficial e confere o SHA-256. |
 | `docs/ficha.md` | Formato da ficha de tradução (`ficha.json`). |
+| `docs/catalogo.md` | Formato do catálogo (`indice.json`) que o app baixa do GitHub. |
 
 ## Como rodar
 
@@ -32,8 +33,20 @@ npm run dev
 `npm run xdelta3` baixa o [xdelta3](https://github.com/jmacd/xdelta) 3.2.2 (Apache 2.0) e grava
 em `src-tauri/binaries/`, onde o Tauri o leva junto com o app.
 
-No app, em Configurações, escolha a pasta de rascunhos: cada tradução fica numa subpasta com o
-`ficha.json` e o patch (ver [docs/ficha.md](docs/ficha.md)).
+## Catálogo
+
+Ao abrir, o app baixa o catálogo público ([docs/catalogo.md](docs/catalogo.md)) e guarda uma cópia na
+pasta de dados dele (`catalogo/`). O patch de cada tradução só é baixado na hora de traduzir, e todo
+download é conferido pelo SHA-256 e pelo tamanho. Sem internet, o app mostra o último catálogo baixado
+e deixa traduzir o que já tem o patch no PC.
+
+Para testar com outro catálogo, defina `url_catalogo` no `config.json` da pasta de dados do app.
+
+## Modo de teste (rascunhos)
+
+Em Configurações, escolha uma pasta de rascunhos: cada tradução fica numa subpasta com o
+`ficha.json` e o patch (ver [docs/ficha.md](docs/ficha.md)). Os rascunhos aparecem junto do catálogo,
+com o selo "Rascunho".
 
 ## Testes
 
@@ -41,12 +54,13 @@ No app, em Configurações, escolha a pasta de rascunhos: cada tradução fica n
 npm test
 ```
 
-Roda a checagem de tipos, os testes das telas (Vitest) e os testes do Rust. Os testes com um
-jogo de verdade ficam de fora e rodam à parte, com as variáveis `TRADUMIX_PACOTES`,
-`TRADUMIX_ISO_JAK2` e `TRADUMIX_SAIDA`:
+Roda a checagem de tipos, os testes das telas (Vitest) e os testes do Rust (inclusive os de rede,
+com um servidor HTTP local). Os testes com um jogo ou um catálogo de verdade ficam de fora e rodam à
+parte, com as variáveis `TRADUMIX_PACOTES`, `TRADUMIX_ISO_JAK2`, `TRADUMIX_SAIDA`,
+`TRADUMIX_INDICE` e `TRADUMIX_CATALOGO`:
 
 ```
-cargo test -p nucleo --test jak2_real -- --ignored
+cargo test -p nucleo --test jak2_real --test catalogo -- --ignored
 ```
 
 ## Licença

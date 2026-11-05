@@ -4,6 +4,8 @@
 //!   TRADUMIX_SAIDA    pasta onde gravar a ISO gerada (só no teste de ponta a ponta)
 //! Rodar com: cargo test -p nucleo --test jak2_real -- --ignored
 
+mod comum;
+
 use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
@@ -20,6 +22,39 @@ fn pacote_jak2() -> nucleo::Pacote {
     let carga = carregar_pacotes(&var("TRADUMIX_PACOTES"));
     assert!(carga.invalidos.is_empty(), "{:?}", carga.invalidos);
     carga.pacotes.into_iter().find(|p| p.ficha.id == "jak2-usa-ptbr").expect("pacote jak2-usa-ptbr")
+}
+
+/// Serve a pasta do catálogo (`TRADUMIX_CATALOGO`) num servidor local, trocando as URLs do GitHub
+/// pelas dele, e confere que o app sincroniza o Jak II e baixa o patch com o SHA-256 certo.
+#[test]
+#[ignore = "precisa da pasta do catálogo em TRADUMIX_CATALOGO"]
+fn catalogo_local_ponta_a_ponta() {
+    use comum::servidor::{Resposta, Servidor};
+    let pasta = var("TRADUMIX_CATALOGO");
+    let s = Servidor::novo();
+    let indice = std::fs::read_to_string(pasta.join("indice.json"))
+        .unwrap()
+        .replace("https://raw.githubusercontent.com/LamarcKz/Tradumix-catalogo/main", &s.url(""))
+        .replace(
+            "https://github.com/LamarcKz/Tradumix-catalogo/releases/download/jak2-usa-ptbr-v1.0",
+            &s.url("/release"),
+        );
+    s.definir("/indice.json", Resposta::Ok(indice.into_bytes()));
+    for arquivo in ["jogos/jak2/capa.jpg", "jogos/jak2/fundo.jpg"] {
+        s.definir(&format!("/{arquivo}"), Resposta::Ok(std::fs::read(pasta.join(arquivo)).unwrap()));
+    }
+    s.definir("/release/jak2-usa-ptbr-v1.0.xdelta", Resposta::Ok(std::fs::read(pasta.join("release/jak2-usa-ptbr-v1.0.xdelta")).unwrap()));
+
+    let cache = tempfile::tempdir().unwrap();
+    let r = nucleo::sincronizar(&nucleo::RedeUreq::novo(), &s.url("/indice.json"), cache.path(), true);
+    assert!(!r.offline && r.aviso.is_none(), "{:?}", r.aviso);
+    let pacote = carregar_pacotes(cache.path()).pacotes.into_iter().find(|p| p.ficha.id == "jak2-usa-ptbr").unwrap();
+    assert!(pacote.imagem(nucleo::Imagem::Capa).unwrap().is_file());
+    assert!(pacote.imagem(nucleo::Imagem::Fundo).unwrap().is_file());
+    assert!(!pacote.patch_disponivel());
+    nucleo::baixar_patch(&nucleo::RedeUreq::novo(), &pacote, &mut |_| {}, &AtomicBool::new(false)).unwrap();
+    assert!(pacote.patch_disponivel());
+    assert_eq!(std::fs::metadata(pacote.patch()).unwrap().len(), 238_940);
 }
 
 #[test]
