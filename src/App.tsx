@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react"
 import * as api from "./api"
 import { BotoesJanela } from "./marca/BotoesJanela"
 import { Logo } from "./marca/Logo"
+import { MarcaDev } from "./marca/MarcaDev"
 import { Configuracoes } from "./telas/Configuracoes"
 import { Inicio } from "./telas/Inicio"
 import { JogoTela, type PedidoTraducao } from "./telas/Jogo"
@@ -115,8 +116,10 @@ export default function App() {
           onClick={() => !ocupado && setTela({ nome: "inicio" })}
           aria-label="Tradumix, voltar ao início"
           disabled={ocupado}
+          className="relative"
         >
           <Logo />
+          <MarcaDev />
         </button>
         <div data-tauri-drag-region className="h-full flex-1" />
         {!ocupado && tela.nome !== "config" && (
