@@ -167,6 +167,17 @@ fn patch_corrompido_apaga_parcial() {
 }
 
 #[test]
+fn iso_ja_traduzida_tem_mensagem_propria() {
+    let c = cenario("ja-traduzida");
+    let ja_traduzida = comum::gravar(&c.raiz, "ja traduzida.iso", &c.destino);
+    let mut p = pedido(&c, c.raiz.join("saida.iso"));
+    p.iso_original = ja_traduzida;
+    let r = aplicar(&c.pacote, &p, &mut |_, _| {}, &AtomicBool::new(false));
+    assert!(matches!(r, Err(Erro::JaTraduzida)), "{r:?}");
+    assert!(parciais(&c.raiz).is_empty());
+}
+
+#[test]
 fn cancelar_apaga_parcial() {
     let c = cenario("cancelar");
     let saida = c.raiz.join("saida.iso");

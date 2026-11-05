@@ -160,6 +160,10 @@ fn gerar(
     };
     let mensagem = leitor.join().unwrap_or_default();
     if !status.success() {
+        // O xdelta3 3.2.x avisa quando a "original" já é o resultado do patch.
+        if mensagem.contains("already matches the target of this patch") {
+            return Err(Erro::JaTraduzida);
+        }
         let detalhe = mensagem.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("erro desconhecido").trim().to_string();
         return Err(Erro::XdeltaFalhou(detalhe));
     }

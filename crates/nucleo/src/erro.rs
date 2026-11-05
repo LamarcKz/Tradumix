@@ -30,6 +30,8 @@ pub enum Erro {
     XdeltaFalhou(String),
     #[error("cancelado")]
     Cancelado,
+    #[error("a ISO já está traduzida")]
+    JaTraduzida,
 }
 
 impl Erro {
@@ -58,6 +60,9 @@ impl Erro {
                 "Não foi possível aplicar a tradução. A ISO pode ser um dump diferente ou estar danificada. Detalhe: {detalhe}"
             ),
             Erro::Cancelado => "Tradução cancelada.".into(),
+            Erro::JaTraduzida => {
+                "Esta ISO já está com esta tradução. Para gerar de novo, selecione a ISO original, sem tradução.".into()
+            }
         }
     }
 }
