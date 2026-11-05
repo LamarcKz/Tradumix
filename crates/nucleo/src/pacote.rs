@@ -76,6 +76,25 @@ pub struct Ficha {
     #[serde(default)]
     pub limitacoes: Vec<String>,
     pub arquivos: Arquivos,
+    /// De onde baixar os arquivos, nas fichas do catálogo. Rascunhos locais não têm.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub download: Option<Download>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArquivoRemoto {
+    pub url: String,
+    pub sha256: String,
+    pub tamanho: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Download {
+    pub patch: ArquivoRemoto,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capa: Option<ArquivoRemoto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fundo: Option<ArquivoRemoto>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -93,6 +112,11 @@ pub struct Pacote {
 impl Pacote {
     pub fn patch(&self) -> PathBuf {
         self.pasta.join(&self.ficha.arquivos.patch)
+    }
+
+    /// O patch já está na pasta (rascunho, ou tradução do catálogo já baixada).
+    pub fn patch_disponivel(&self) -> bool {
+        self.patch().is_file()
     }
 
     pub fn imagem(&self, qual: Imagem) -> Option<PathBuf> {
@@ -166,6 +190,16 @@ fn procurar_pacotes(pasta: &Path, nivel: usize, achados: &mut Vec<PathBuf>) {
 fn ler_pacote(pasta: &Path) -> Result<Pacote, String> {
     let texto = fs::read_to_string(pasta.join("ficha.json")).map_err(|e| format!("não foi possível ler o ficha.json: {e}"))?;
     let ficha: Ficha = serde_json::from_str(&texto).map_err(|e| format!("ficha.json inválido: {e}"))?;
+    validar_ficha(&ficha)?;
+    let pacote = Pacote { ficha, pasta: pasta.to_path_buf() };
+    if !pacote.patch().is_file() && pacote.ficha.download.is_none() {
+        return Err(format!("o arquivo do patch {} não existe", pacote.ficha.arquivos.patch));
+    }
+    Ok(pacote)
+}
+
+/// Regras que valem para toda ficha, venha de uma pasta ou do catálogo.
+pub(crate) fn validar_ficha(ficha: &Ficha) -> Result<(), String> {
     if ficha.formato != FORMATO_FICHA {
         return Err(format!("formato de ficha {} não suportado (esperado {FORMATO_FICHA})", ficha.formato));
     }
@@ -173,6 +207,10 @@ fn ler_pacote(pasta: &Path) -> Result<Pacote, String> {
         if valor.trim().is_empty() {
             return Err(format!("o campo {campo} está vazio"));
         }
+    }
+    // O id vira nome de pasta no cache do catálogo.
+    if !nome_simples(&ficha.id) || ficha.id.starts_with('.') {
+        return Err(format!("o id {} não pode ter barras, ':' nem começar com ponto", ficha.id));
     }
     for (campo, hash) in [("origem.hash_ra", &ficha.origem.hash_ra), ("resultado.hash_ra", &ficha.resultado.hash_ra)] {
         if hash.len() != 32 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
@@ -185,11 +223,7 @@ fn ler_pacote(pasta: &Path) -> Result<Pacote, String> {
             return Err(format!("o arquivo {nome} precisa estar na própria pasta do pacote"));
         }
     }
-    let pacote = Pacote { ficha, pasta: pasta.to_path_buf() };
-    if !pacote.patch().is_file() {
-        return Err(format!("o arquivo do patch {} não existe", pacote.ficha.arquivos.patch));
-    }
-    Ok(pacote)
+    Ok(())
 }
 
 /// Só um nome de arquivo, sem pastas, unidade ou `..`.

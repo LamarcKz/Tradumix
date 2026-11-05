@@ -2,7 +2,7 @@
 
 Cada pacote de tradução é uma pasta com um `ficha.json`, o patch `.xdelta` e, opcionalmente,
 uma capa e um fundo. Todos os arquivos ficam na própria pasta do pacote: os nomes em
-`arquivos` não podem ter barras, `:` nem `..`.
+`arquivos` não podem ter barras, `:` nem `..`. O `id` também não, porque vira nome de pasta.
 
 ```json
 {
@@ -40,6 +40,7 @@ uma capa e um fundo. Todos os arquivos ficam na própria pasta do pacote: os nom
 | `descricao`, `traduzido`, `limitacoes` | não | Textos da página do jogo. |
 | `arquivos.patch` | sim | Nome do patch `.xdelta` na pasta do pacote. |
 | `arquivos.capa`, `arquivos.fundo` | não | Imagens da grade e da página do jogo. |
+| `download` | só no catálogo | URLs, SHA-256 e tamanhos para baixar patch, capa e fundo. Ver [catalogo.md](catalogo.md). Com ele, o patch pode faltar na pasta até ser baixado. |
 
 Os dois hashes têm 32 caracteres hexadecimais. O hash do RetroAchievements de um jogo de
 PS2 é o MD5 do nome do executável (como no `BOOT2` do `SYSTEM.CNF`, sem `cdrom0:\` e sem

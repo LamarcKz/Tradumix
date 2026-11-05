@@ -34,6 +34,8 @@ pub enum Erro {
     JaTraduzida,
     #[error("mesmo jogo ({serial}), outra versão do disco")]
     VersaoDiferente { esperado_nome: String, serial: String },
+    #[error("índice do catálogo inválido: {0}")]
+    IndiceInvalido(String),
 }
 
 impl Erro {
@@ -65,6 +67,7 @@ impl Erro {
             Erro::VersaoDiferente { esperado_nome, serial } => format!(
                 "Esta ISO é do jogo certo ({serial}), mas de outra versão do disco: o executável é diferente do usado na tradução. Esta tradução precisa da {esperado_nome} original."
             ),
+            Erro::IndiceInvalido(m) => format!("O catálogo de traduções veio com erro: {m}"),
             Erro::JaTraduzida => {
                 "Esta ISO já está com esta tradução. Para gerar de novo, selecione a ISO original, sem tradução.".into()
             }

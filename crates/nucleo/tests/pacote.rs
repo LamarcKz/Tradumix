@@ -131,6 +131,20 @@ fn nao_desce_dentro_de_um_pacote() {
 }
 
 #[test]
+fn pacote_com_download_carrega_sem_o_patch() {
+    let raiz = tempfile::tempdir().unwrap();
+    let sha = "3ce44ebfecc30fc110c57f4fdf6ec0cd8c483fb3403d60ef3a671afb5f26e8de";
+    let json = ficha_json("cat", "jak2", "Jak II", HASH, 1).replace(
+        "\"arquivos\":",
+        &format!(r#""download": {{ "patch": {{ "url": "https://x/p.xdelta", "sha256": "{sha}", "tamanho": 10 }} }}, "arquivos":"#),
+    );
+    criar_pacote(raiz.path(), "cat", &json, false);
+    let carga = carregar_pacotes(raiz.path());
+    assert!(carga.invalidos.is_empty(), "{:?}", carga.invalidos);
+    assert!(!carga.pacotes[0].patch_disponivel());
+}
+
+#[test]
 fn pasta_inexistente_nao_quebra() {
     let carga = carregar_pacotes(Path::new("pasta-que-nao-existe-xyz"));
     assert!(carga.pacotes.is_empty());
