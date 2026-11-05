@@ -20,6 +20,8 @@
         "minWidth": 960,
         "minHeight": 640,
         "center": true,
+        "maximized": true,
+        "backgroundColor": "#0b0b0b",
         "decorations": false,
         "shadow": true
       }
