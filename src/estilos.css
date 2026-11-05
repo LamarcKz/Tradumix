@@ -1,18 +1,22 @@
 @import "tailwindcss";
-@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/manrope";
 
-/* Índigo do menu do PS2 e o amarelo da bandeira. O verde fica só para "compatível com RetroAchievements". */
+/* Mesma linguagem do site LamarcK: monocromático, superfícies em degraus de cinza,
+   botão claro com texto escuro. Cor só onde ela diz algo: verde para "compatível",
+   vermelho suave para erro. */
 @theme {
-  --color-fundo: #0c1236;
-  --color-superficie: #161d4a;
-  --color-borda: #2a336b;
-  --color-texto: #e8eaf6;
-  --color-suave: #9aa3d0;
-  --color-amarelo: #f4c430;
-  --color-verde: #2bb673;
-  --color-erro: #ff8a7a;
-  --color-caixa: #050505;
-  --font-sans: "Bricolage Grotesque Variable", system-ui, sans-serif;
+  --color-fundo: #0b0b0b;
+  --color-superficie: #151515;
+  --color-elevada: #1b1b1b;
+  --color-borda: #303030;
+  --color-texto: #f5f5f5;
+  --color-suave: #b1b1b1;
+  --color-sutil: #888888;
+  --color-destaque: #f2f2f2;
+  --color-verde: #8fd3a3;
+  --color-erro: #e8a59c;
+  --color-caixa: #000000;
+  --font-sans: "Manrope Variable", Arial, sans-serif;
 }
 
 html,
@@ -27,21 +31,25 @@ body {
   color: var(--color-texto);
   font-family: var(--font-sans);
   font-size: 15px;
-  line-height: 1.5;
+  line-height: 1.65;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Títulos largos: o eixo de largura da Bricolage é a voz do app. */
+::selection {
+  background: #eeeeee;
+  color: #111111;
+}
+
+/* Títulos como no site: peso 600 e espaçamento bem fechado. */
 .titulo {
-  font-variation-settings: "wdth" 100;
-  font-weight: 760;
-  letter-spacing: -0.02em;
-  line-height: 1.02;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-amarelo);
-  outline-offset: 3px;
+  outline: 2px solid var(--color-texto);
+  outline-offset: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {

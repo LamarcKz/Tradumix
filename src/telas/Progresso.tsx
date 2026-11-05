@@ -26,7 +26,7 @@ export function ProgressoTela({ nomeJogo, progresso }: { nomeJogo: string; progr
             <li key={e.etapa} aria-current={agora ? "step" : undefined} className="flex items-center gap-4">
               <span
                 className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-sm font-semibold ${
-                  feita ? "border-verde bg-verde text-fundo" : agora ? "border-amarelo text-amarelo" : "border-borda text-suave"
+                  feita ? "border-verde bg-verde text-fundo" : agora ? "border-destaque text-destaque" : "border-borda text-suave"
                 }`}
               >
                 {feita ? "✓" : i + 1}
@@ -52,7 +52,7 @@ export function ProgressoTela({ nomeJogo, progresso }: { nomeJogo: string; progr
           aria-label={ETAPAS[atual]?.nome}
           className="mt-3 h-3 overflow-hidden rounded-full bg-superficie"
         >
-          <div className="h-full rounded-full bg-amarelo transition-[width] duration-200" style={{ width: `${pct}%` }} />
+          <div className="h-full rounded-full bg-destaque transition-[width] duration-200" style={{ width: `${pct}%` }} />
         </div>
       </div>
 

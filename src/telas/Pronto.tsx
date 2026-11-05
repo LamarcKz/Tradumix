@@ -28,7 +28,7 @@ export function Pronto({ jogo, traducao, resultado, aoVoltar }: Props) {
             Compatível com RetroAchievements
           </p>
         ) : (
-          <p className="mt-4 text-amarelo">O hash do RetroAchievements mudou: as conquistas podem não funcionar.</p>
+          <p className="mt-4 text-erro">O hash do RetroAchievements mudou: as conquistas podem não funcionar.</p>
         )}
 
         <div className="mt-8">
@@ -43,11 +43,11 @@ export function Pronto({ jogo, traducao, resultado, aoVoltar }: Props) {
         <div className="mt-10 flex gap-3">
           <button
             onClick={() => void api.abrirPasta(resultado.saida)}
-            className="rounded-md bg-amarelo px-5 py-3 font-semibold text-fundo hover:brightness-110"
+            className="rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5]"
           >
             Abrir pasta
           </button>
-          <button onClick={aoVoltar} className="rounded-md border border-borda px-5 py-3 hover:border-amarelo">
+          <button onClick={aoVoltar} className="rounded-md border border-borda px-5 py-3 hover:border-destaque">
             Voltar ao início
           </button>
         </div>

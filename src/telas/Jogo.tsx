@@ -110,7 +110,7 @@ export function JogoTela({ jogo, aviso, pedidoAnterior, aoVoltar, aoTraduzir }: 
             <p className="mt-3 text-suave">
               Tradução {traducao.idioma.toUpperCase()} versão {traducao.versao}, para a versão {traducao.regiao} ({traducao.serial})
               {traducao.estado !== "publicada" && (
-                <span className="ml-2 rounded border border-amarelo/50 px-1.5 py-0.5 text-xs text-amarelo">
+                <span className="ml-2 rounded border border-borda px-1.5 py-0.5 text-xs text-suave">
                   {NOME_ESTADO[traducao.estado]}
                 </span>
               )}
@@ -171,7 +171,7 @@ export function JogoTela({ jogo, aviso, pedidoAnterior, aoVoltar, aoTraduzir }: 
                 {traducao.tradutores.map((t) => (
                   <li key={t.nome}>
                     {t.link ? (
-                      <a href={t.link} target="_blank" rel="noreferrer" className="underline decoration-amarelo underline-offset-4">
+                      <a href={t.link} target="_blank" rel="noreferrer" className="underline decoration-sutil underline-offset-4 hover:decoration-texto">
                         {t.nome}
                       </a>
                     ) : (
@@ -216,16 +216,16 @@ export function JogoTela({ jogo, aviso, pedidoAnterior, aoVoltar, aoTraduzir }: 
                 <div>
                   <p className="text-sm text-suave">A traduzida será gravada em</p>
                   <p className="break-all text-sm">{saida}</p>
-                  <button onClick={escolherOutraPasta} className="mt-1 text-sm text-amarelo hover:underline">
+                  <button onClick={escolherOutraPasta} className="mt-1 text-sm text-texto underline decoration-sutil underline-offset-4 hover:decoration-texto">
                     Escolher outra pasta
                   </button>
                 </div>
                 {conferencia.ja_existe ? (
                   <div className="space-y-2">
-                    <p className="text-sm text-amarelo">Já existe um arquivo com esse nome.</p>
+                    <p className="text-sm text-erro">Já existe um arquivo com esse nome.</p>
                     <button
                       onClick={() => traduzir(true)}
-                      className="w-full rounded-md bg-amarelo px-5 py-3 font-semibold text-fundo hover:brightness-110"
+                      className="w-full rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5]"
                     >
                       Substituir e traduzir
                     </button>
@@ -233,7 +233,7 @@ export function JogoTela({ jogo, aviso, pedidoAnterior, aoVoltar, aoTraduzir }: 
                 ) : (
                   <button
                     onClick={() => traduzir(false)}
-                    className="w-full rounded-md bg-amarelo px-5 py-3 font-semibold text-fundo hover:brightness-110"
+                    className="w-full rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5]"
                   >
                     Traduzir
                   </button>
@@ -246,7 +246,7 @@ export function JogoTela({ jogo, aviso, pedidoAnterior, aoVoltar, aoTraduzir }: 
               <button
                 onClick={selecionarIso}
                 disabled={conferindo}
-                className="mt-5 w-full rounded-md bg-amarelo px-5 py-3 font-semibold text-fundo hover:brightness-110 disabled:opacity-60"
+                className="mt-5 w-full rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5] disabled:opacity-60"
               >
                 {conferindo ? "Conferindo a ISO…" : conferencia ? "Selecionar outra ISO" : "Selecionar ISO"}
               </button>

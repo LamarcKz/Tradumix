@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Tradumix">
+  <rect width="1024" height="1024" fill="#0b0b0b"/>
+  <!-- T em três peças: a barra cortada por uma fenda diagonal e a haste solta, como um patch encaixado. -->
+  <g fill="#f5f5f5">
+    <path d="M226 238 H586 L500 352 H226 Z"/>
+    <path d="M646 238 H798 V352 H560 Z"/>
+    <path d="M456 398 H568 V786 H456 Z"/>
+  </g>
+</svg>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 
 import * as api from "./api"
+import { Logo } from "./marca/Logo"
 import { Configuracoes } from "./telas/Configuracoes"
 import { Inicio } from "./telas/Inicio"
 import { JogoTela, type PedidoTraducao } from "./telas/Jogo"
@@ -69,9 +70,13 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-14 shrink-0 items-center justify-between border-b border-borda/60 px-10">
-        <button onClick={() => !ocupado && setTela({ nome: "inicio" })} className="titulo text-xl" disabled={ocupado}>
-          Tradumix
+      <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/[0.05] bg-fundo/90 px-10 backdrop-blur">
+        <button
+          onClick={() => !ocupado && setTela({ nome: "inicio" })}
+          aria-label="Tradumix, voltar ao início"
+          disabled={ocupado}
+        >
+          <Logo />
         </button>
         {!ocupado && tela.nome !== "config" && (
           <button onClick={() => setTela({ nome: "config" })} className="text-sm text-suave hover:text-texto">

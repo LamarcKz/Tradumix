@@ -21,7 +21,7 @@ export function Inicio({ lista, aoAbrirJogo, aoEscolherPasta }: Props) {
         </p>
         <button
           onClick={aoEscolherPasta}
-          className="rounded-md bg-amarelo px-5 py-3 font-semibold text-fundo hover:brightness-110"
+          className="rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5]"
         >
           Escolher pasta de rascunhos (modo de teste)
         </button>
@@ -56,7 +56,7 @@ export function Inicio({ lista, aoAbrirJogo, aoEscolherPasta }: Props) {
       {n === 0 ? (
         <div className="flex flex-col items-start gap-4 pt-8">
           <p className="text-suave">Nenhuma tradução nesta pasta.</p>
-          <button onClick={aoEscolherPasta} className="rounded-md border border-borda px-4 py-2 hover:border-amarelo">
+          <button onClick={aoEscolherPasta} className="rounded-md border border-borda px-4 py-2 hover:border-destaque">
             Escolher outra pasta
           </button>
         </div>
@@ -79,7 +79,7 @@ export function Inicio({ lista, aoAbrirJogo, aoEscolherPasta }: Props) {
                   <p className="mt-3 font-semibold leading-tight">{jogo.nome}</p>
                   <p className="mt-1 flex flex-wrap gap-1.5 text-xs">
                     {idiomas.map((i) => (
-                      <span key={i} className="rounded bg-amarelo px-1.5 py-0.5 font-semibold text-fundo">
+                      <span key={i} className="rounded bg-destaque px-1.5 py-0.5 font-semibold text-fundo">
                         {i}
                       </span>
                     ))}

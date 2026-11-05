@@ -19,7 +19,7 @@ export function Configuracoes({ pasta, aoTrocarPasta, aoVoltar }: Props) {
           patch.
         </p>
         <p className="mt-4 break-all rounded-md bg-superficie px-4 py-3 text-sm">{pasta ?? "Nenhuma pasta escolhida"}</p>
-        <button onClick={aoTrocarPasta} className="mt-3 rounded-md border border-borda px-4 py-2 hover:border-amarelo">
+        <button onClick={aoTrocarPasta} className="mt-3 rounded-md border border-borda px-4 py-2 hover:border-destaque">
           {pasta ? "Trocar pasta" : "Escolher pasta"}
         </button>
       </div>
