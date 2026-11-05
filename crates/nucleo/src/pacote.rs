@@ -254,6 +254,18 @@ pub fn serve_para(ficha: &Ficha, id: &IdentidadePs2) -> bool {
     ficha.origem.hash_ra.eq_ignore_ascii_case(&id.hash_ra)
 }
 
+/// Dias em que uma tradução recém-publicada aparece com o selo "Novo".
+const DIAS_NOVO: i64 = 14;
+
+/// A tradução saiu há menos de 14 dias (`data` e `hoje` no formato AAAA-MM-DD).
+pub fn e_novo(ficha: &Ficha, hoje: &str) -> bool {
+    let ler = |d: &str| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok();
+    match (ler(&ficha.data), ler(hoje)) {
+        (Some(data), Some(hoje)) => (0..DIAS_NOVO).contains(&(hoje - data).num_days()),
+        _ => false,
+    }
+}
+
 /// Compara versões por partes numéricas: `1.9 < 1.10`.
 pub fn comparar_versoes(a: &str, b: &str) -> Ordering {
     let partes = |v: &str| -> Vec<u64> { v.split('.').map(|p| p.trim().parse().unwrap_or(0)).collect() };

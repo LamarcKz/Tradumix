@@ -144,6 +144,38 @@ fn pacote_com_download_carrega_sem_o_patch() {
     assert!(!carga.pacotes[0].patch_disponivel());
 }
 
+fn ficha_de(data: &str) -> nucleo::Ficha {
+    let raiz = tempfile::tempdir().unwrap();
+    let json = ficha_json("x", "jak2", "Jak II", HASH, 1).replace("2026-11-05", data);
+    criar_pacote(raiz.path(), "x", &json, true);
+    carregar_pacotes(raiz.path()).pacotes.remove(0).ficha
+}
+
+#[test]
+fn novo_no_mesmo_dia() {
+    assert!(nucleo::e_novo(&ficha_de("2026-11-05"), "2026-11-05"));
+}
+
+#[test]
+fn novo_ate_13_dias() {
+    assert!(nucleo::e_novo(&ficha_de("2026-11-05"), "2026-11-18"));
+}
+
+#[test]
+fn nao_e_novo_com_14_dias() {
+    assert!(!nucleo::e_novo(&ficha_de("2026-11-05"), "2026-11-19"));
+}
+
+#[test]
+fn data_no_futuro_nao_e_novo() {
+    assert!(!nucleo::e_novo(&ficha_de("2026-11-10"), "2026-11-05"));
+}
+
+#[test]
+fn data_invalida_nao_e_novo() {
+    assert!(!nucleo::e_novo(&ficha_de("ontem"), "2026-11-05"));
+}
+
 #[test]
 fn pasta_inexistente_nao_quebra() {
     let carga = carregar_pacotes(Path::new("pasta-que-nao-existe-xyz"));

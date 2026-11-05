@@ -21,7 +21,7 @@ pub use processo::GrupoDeProcessos;
 pub use iso9660::Iso;
 pub use pacote::{
     ArquivoRemoto, Arquivos, Download, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Jogo, JogoNoCatalogo, Origem, Pacote, PacoteInvalido,
-    ResultadoEsperado, Tradutor, agrupar_por_jogo, carregar_pacotes, comparar_versoes, serve_para,
+    ResultadoEsperado, Tradutor, agrupar_por_jogo, carregar_pacotes, comparar_versoes, e_novo, serve_para,
 };
 pub use rede::{Rede, RedeUreq};
 pub use sincronizar::{Sincronizacao, sincronizar};
