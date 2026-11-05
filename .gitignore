@@ -8,3 +8,4 @@ src-tauri/gen/
 .superpowers/
 *.log
 .claude/launch.json
+dist-release/

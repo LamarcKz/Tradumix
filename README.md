@@ -13,7 +13,7 @@ O app nunca distribui o jogo: ele usa só o patch (`.xdelta`) da tradução.
 
 Baixe a versão mais recente na [página de releases](https://github.com/LamarcKz/Tradumix/releases/latest):
 
-- **Instalador** (`Tradumix_<versão>_x64-setup.exe`): instala só para o seu usuário, sem pedir permissão de administrador.
+- **Instalador** (`Tradumix-Setup-<versão>.exe`): instala só para o seu usuário, sem pedir permissão de administrador.
 - **Portátil** (`Tradumix-<versão>-portable.zip`): extraia e abra o `Tradumix.exe`; os dados ficam na pasta `dados`, ao lado.
 
 O Tradumix ainda não tem assinatura de código, então o Windows pode avisar que o app não é
@@ -49,6 +49,18 @@ SHA-256 e grava em `src-tauri/binaries/`, onde o Tauri o leva junto com o app. E
 `xdelta3-v3.2.2` deste repositório, compilada do código oficial pelo workflow
 [`xdelta3.yml`](.github/workflows/xdelta3.yml) com as opções da release oficial e a biblioteca do C
 dentro do `.exe`, para não depender do `VCRUNTIME140.dll`.
+
+O `npm run dev` mostra a marca **DEV** embaixo do logo e usa uma cópia dos dados do app instalado
+(`%APPDATA%\io.github.tradumix Dev`); `npm run dev:nova-copia` refaz essa cópia.
+
+## Lançar uma versão
+
+- `npm run versao`: diz qual é a próxima versão pelos commits desde a última tag (`feat` sobe o número
+  do meio, `fix` o último) e monta um rascunho das notas.
+- `npm run dist`: roda os testes e gera em `dist-release/` o instalador, o `.zip` portátil e o
+  `latest.json` assinado, que o app lê para avisar da versão nova. Precisa da chave das atualizações
+  (`TAURI_SIGNING_PRIVATE_KEY` ou `.tauri/tradumix.key` na pasta do usuário), que nunca vai para o
+  repositório. O build tira do `.exe` os caminhos do PC de quem compila.
 
 ## Catálogo
 
