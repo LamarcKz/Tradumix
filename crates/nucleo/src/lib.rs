@@ -1,6 +1,7 @@
 //! Núcleo do Tradumix.
 
 mod aplicar;
+mod baixar;
 mod catalogo;
 mod erro;
 mod historico;
@@ -11,7 +12,8 @@ mod ps2;
 mod rede;
 mod sincronizar;
 
-pub use aplicar::{Etapa, Pedido, Resultado, aplicar, conferir, nome_saida};
+pub use aplicar::{Etapa, Pedido, Resultado, aplicar, aplicar_com_rede, conferir, nome_saida};
+pub use baixar::baixar_patch;
 pub use catalogo::{FORMATO_INDICE, Indice, ler_indice};
 pub use erro::Erro;
 pub use historico::{Atualizacao, Entrada, Historico};

@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Erro, Ficha, IdentidadePs2, Pacote, identificar};
+use crate::{Erro, Ficha, IdentidadePs2, Pacote, Rede, identificar};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const MARGEM_ESPACO: u64 = 64 * 1024 * 1024;
@@ -20,6 +20,7 @@ const MARGEM_ESPACO: u64 = 64 * 1024 * 1024;
 #[serde(rename_all = "lowercase")]
 pub enum Etapa {
     Conferindo,
+    Baixando,
     Aplicando,
     Verificando,
 }
@@ -87,9 +88,21 @@ pub fn conferir(pacote: &Pacote, iso_original: &Path) -> Result<IdentidadePs2, E
     Ok(id)
 }
 
+/// Aplica sem internet: o patch precisa já estar na pasta do pacote.
 pub fn aplicar(
     pacote: &Pacote,
     pedido: &Pedido,
+    progresso: &mut dyn FnMut(Etapa, f32),
+    cancelar: &AtomicBool,
+) -> Result<Resultado, Erro> {
+    aplicar_com_rede(pacote, pedido, None, progresso, cancelar)
+}
+
+/// Como `aplicar`, mas baixa o patch antes (etapa Baixando) quando ele ainda não está na pasta.
+pub fn aplicar_com_rede(
+    pacote: &Pacote,
+    pedido: &Pedido,
+    rede: Option<&dyn Rede>,
     progresso: &mut dyn FnMut(Etapa, f32),
     cancelar: &AtomicBool,
 ) -> Result<Resultado, Erro> {
@@ -109,6 +122,12 @@ pub fn aplicar(
         return Err(Erro::EspacoInsuficiente { precisa: esperado + MARGEM_ESPACO, livre });
     }
     progresso(Etapa::Conferindo, 1.0);
+
+    if !pacote.patch_disponivel() {
+        let rede = rede.ok_or(Erro::PrecisaInternet)?;
+        progresso(Etapa::Baixando, 0.0);
+        crate::baixar_patch(rede, pacote, &mut |f| progresso(Etapa::Baixando, f), cancelar)?;
+    }
 
     let parcial = caminho_parcial(&pedido.saida);
     let resultado = gerar(pacote, pedido, &parcial, esperado, progresso, cancelar).and_then(|()| {

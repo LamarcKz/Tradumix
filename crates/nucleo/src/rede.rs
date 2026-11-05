@@ -50,9 +50,7 @@ impl Rede for RedeUreq {
             if total > limite {
                 return Err(Erro::DownloadInvalido("o arquivo é maior que o esperado".into()));
             }
-            destino.write_all(&buffer[..n]).map_err(|e| {
-                if e.kind() == io::ErrorKind::Interrupted { Erro::Cancelado } else { Erro::Io(e.to_string()) }
-            })?;
+            destino.write_all(&buffer[..n]).map_err(|e| Erro::Io(e.to_string()))?;
             progresso(total);
         }
         Ok(total)
@@ -79,8 +77,9 @@ struct Gravador<'a> {
 
 impl Write for Gravador<'_> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        // Não usar ErrorKind::Interrupted: o write_all repete a gravação nesse caso.
         if self.cancelar.is_some_and(|c| c.load(Ordering::Relaxed)) {
-            return Err(io::Error::new(io::ErrorKind::Interrupted, "cancelado"));
+            return Err(io::Error::other("cancelado"));
         }
         self.sha.update(buf);
         self.arquivo.write(buf)
@@ -124,6 +123,9 @@ pub(crate) fn baixar_conferido(
     })();
     if resultado.is_err() {
         let _ = fs::remove_file(&parcial);
+        if cancelar.is_some_and(|c| c.load(Ordering::Relaxed)) {
+            return Err(Erro::Cancelado);
+        }
     }
     resultado
 }

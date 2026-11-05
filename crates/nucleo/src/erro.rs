@@ -40,6 +40,8 @@ pub enum Erro {
     Rede(String),
     #[error("download inválido: {0}")]
     DownloadInvalido(String),
+    #[error("precisa de internet para baixar o patch")]
+    PrecisaInternet,
 }
 
 impl Erro {
@@ -74,6 +76,7 @@ impl Erro {
             Erro::IndiceInvalido(m) => format!("O catálogo de traduções veio com erro: {m}"),
             Erro::Rede(m) => format!("Não foi possível baixar da internet. Confira a conexão e tente de novo. Detalhe: {m}"),
             Erro::DownloadInvalido(m) => format!("O arquivo baixado veio diferente do esperado e foi descartado. Tente de novo. Detalhe: {m}"),
+            Erro::PrecisaInternet => "Precisa de internet para baixar a tradução.".into(),
             Erro::JaTraduzida => {
                 "Esta ISO já está com esta tradução. Para gerar de novo, selecione a ISO original, sem tradução.".into()
             }

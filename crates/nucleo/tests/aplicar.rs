@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::AtomicBool;
 
-use nucleo::{Erro, Etapa, Pacote, Pedido, aplicar, carregar_pacotes, conferir, identificar, nome_saida};
+use nucleo::{Erro, Etapa, Pacote, Pedido, aplicar, aplicar_com_rede, carregar_pacotes, conferir, identificar, nome_saida};
 
 const CNF: &[u8] = b"BOOT2 = cdrom0:\\SCUS_972.65;1\r\n";
 
@@ -76,6 +76,51 @@ fn pedido(c: &Cenario, saida: PathBuf) -> Pedido {
 
 fn parciais(pasta: &Path) -> Vec<PathBuf> {
     fs::read_dir(pasta).unwrap().map(|e| e.unwrap().path()).filter(|p| p.to_string_lossy().ends_with(".parcial")).collect()
+}
+
+/// Troca o pacote do cenário por um do catálogo: sem o patch na pasta, com o download apontando para `servidor`.
+fn pacote_do_catalogo(c: &Cenario, servidor: &comum::servidor::Servidor) -> Pacote {
+    let patch = fs::read(c.pacote.patch()).unwrap();
+    servidor.definir("/patch", comum::servidor::Resposta::Ok(patch.clone()));
+    let ficha_path = c.pacote.pasta.join("ficha.json");
+    let ficha = fs::read_to_string(&ficha_path).unwrap();
+    let download = format!(
+        r#""download":{{"patch":{{"url":"{}","sha256":"{}","tamanho":{}}}}},"arquivos":"#,
+        servidor.url("/patch"),
+        comum::sha256_hex(&patch),
+        patch.len()
+    );
+    fs::write(&ficha_path, ficha.replacen("\"arquivos\":", &download, 1)).unwrap();
+    fs::remove_file(c.pacote.patch()).unwrap();
+    carregar_pacotes(&c.raiz.join("pacote")).pacotes.remove(0)
+}
+
+#[test]
+fn aplicar_baixa_antes_quando_precisa() {
+    let c = cenario("baixa-antes");
+    let servidor = comum::servidor::Servidor::novo();
+    let pacote = pacote_do_catalogo(&c, &servidor);
+    assert!(!pacote.patch_disponivel());
+    let saida = c.raiz.join("saida.iso");
+    let mut etapas: Vec<Etapa> = Vec::new();
+    let rede = nucleo::RedeUreq::novo();
+    aplicar_com_rede(&pacote, &pedido(&c, saida.clone()), Some(&rede), &mut |e, _| {
+        if etapas.last() != Some(&e) {
+            etapas.push(e)
+        }
+    }, &AtomicBool::new(false))
+    .unwrap();
+    assert_eq!(etapas, vec![Etapa::Conferindo, Etapa::Baixando, Etapa::Aplicando, Etapa::Verificando]);
+    assert_eq!(fs::read(&saida).unwrap(), c.destino);
+}
+
+#[test]
+fn sem_rede_e_sem_patch_pede_internet() {
+    let c = cenario("sem-rede");
+    let servidor = comum::servidor::Servidor::novo();
+    let pacote = pacote_do_catalogo(&c, &servidor);
+    let r = aplicar(&pacote, &pedido(&c, c.raiz.join("saida.iso")), &mut |_, _| {}, &AtomicBool::new(false));
+    assert!(matches!(r, Err(Erro::PrecisaInternet)), "{r:?}");
 }
 
 #[test]
