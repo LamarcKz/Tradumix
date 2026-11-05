@@ -108,6 +108,28 @@ fn arquivo_fora_da_pasta_do_pacote_e_invalido() {
     assert_eq!(carga.invalidos.len(), 2);
 }
 
+/// Escolher a pasta da oficina (`Traduções`) acha o pacote em `Jak II\pacote\jak2-usa-ptbr`.
+#[test]
+fn acha_pacotes_em_subpastas() {
+    let raiz = tempfile::tempdir().unwrap();
+    let fundo = raiz.path().join("Jak II").join("pacote");
+    criar_pacote(&fundo, "jak2-usa-ptbr", &ficha_json("jak2-usa-ptbr", "jak2", "Jak II", HASH, 1), true);
+    fs::create_dir_all(raiz.path().join("Jak II").join("tools")).unwrap();
+    let carga = carregar_pacotes(raiz.path());
+    assert_eq!(carga.pacotes.len(), 1, "{:?}", carga.invalidos);
+    assert_eq!(carga.pacotes[0].pasta, fundo.join("jak2-usa-ptbr"));
+}
+
+#[test]
+fn nao_desce_dentro_de_um_pacote() {
+    let raiz = tempfile::tempdir().unwrap();
+    criar_pacote(raiz.path(), "a", &ficha_json("a", "jak2", "Jak II", HASH, 1), true);
+    criar_pacote(&raiz.path().join("a"), "dentro", &ficha_json("dentro", "jak2", "Jak II", HASH, 1), true);
+    let carga = carregar_pacotes(raiz.path());
+    assert_eq!(carga.pacotes.len(), 1);
+    assert_eq!(carga.pacotes[0].ficha.id, "a");
+}
+
 #[test]
 fn pasta_inexistente_nao_quebra() {
     let carga = carregar_pacotes(Path::new("pasta-que-nao-existe-xyz"));

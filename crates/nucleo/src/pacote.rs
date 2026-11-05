@@ -124,15 +124,16 @@ pub struct JogoNoCatalogo {
     pub pacotes: Vec<String>,
 }
 
-/// Carrega cada subpasta de `pasta` que tenha um `ficha.json`.
+/// Até quantos níveis abaixo da pasta escolhida o app procura pacotes
+/// (ex.: `Traduções` → `Jak II` → `pacote` → `jak2-usa-ptbr`).
+const PROFUNDIDADE_MAXIMA: usize = 4;
+
+/// Carrega cada pasta com um `ficha.json` dentro de `pasta`, procurando também nas subpastas.
+/// Não desce dentro de um pacote já encontrado.
 pub fn carregar_pacotes(pasta: &Path) -> CargaPacotes {
     let mut carga = CargaPacotes::default();
-    let Ok(entradas) = fs::read_dir(pasta) else { return carga };
-    let mut pastas: Vec<PathBuf> = entradas
-        .filter_map(|e| e.ok())
-        .map(|e| e.path())
-        .filter(|p| p.join("ficha.json").is_file())
-        .collect();
+    let mut pastas = Vec::new();
+    procurar_pacotes(pasta, 1, &mut pastas);
     pastas.sort();
     for p in pastas {
         match ler_pacote(&p) {
@@ -141,6 +142,25 @@ pub fn carregar_pacotes(pasta: &Path) -> CargaPacotes {
         }
     }
     carga
+}
+
+fn procurar_pacotes(pasta: &Path, nivel: usize, achados: &mut Vec<PathBuf>) {
+    if nivel > PROFUNDIDADE_MAXIMA {
+        return;
+    }
+    let Ok(entradas) = fs::read_dir(pasta) else { return };
+    for entrada in entradas.filter_map(|e| e.ok()) {
+        let caminho = entrada.path();
+        let oculta = entrada.file_name().to_string_lossy().starts_with('.');
+        if oculta || !entrada.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            continue;
+        }
+        if caminho.join("ficha.json").is_file() {
+            achados.push(caminho);
+        } else {
+            procurar_pacotes(&caminho, nivel + 1, achados);
+        }
+    }
 }
 
 fn ler_pacote(pasta: &Path) -> Result<Pacote, String> {
