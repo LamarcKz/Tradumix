@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { open } from "@tauri-apps/plugin-dialog"
 
-import type { Conferencia, ListaJogos, Progresso, Resultado } from "./tipos"
+import type { Conferencia, ListaJogos, Progresso, Resultado, VersaoNova } from "./tipos"
 
 export function listarJogos(): Promise<ListaJogos> {
   return invoke("listar_jogos")
@@ -41,6 +41,16 @@ export function arquivoExiste(caminho: string): Promise<boolean> {
 
 export function abrirPasta(caminho: string): Promise<void> {
   return invoke("abrir_pasta", { caminho })
+}
+
+/** Procura uma versão nova do Tradumix no GitHub. Sem versão nova, sem internet ou no npm run dev: null. */
+export function procurarVersaoNova(): Promise<VersaoNova | null> {
+  return invoke<VersaoNova | null>("procurar_versao_nova").catch(() => null)
+}
+
+/** Baixa e instala a versão encontrada (o app reinicia); na portátil, abre a página de download. */
+export function instalarVersaoNova(): Promise<void> {
+  return invoke("instalar_versao_nova")
 }
 
 // A janela não tem a barra do Windows: o topo do app tem os próprios botões.

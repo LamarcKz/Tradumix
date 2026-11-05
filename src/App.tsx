@@ -4,6 +4,7 @@ import * as api from "./api"
 import { BotoesJanela } from "./marca/BotoesJanela"
 import { Logo } from "./marca/Logo"
 import { MarcaDev } from "./marca/MarcaDev"
+import { AvisoVersao } from "./telas/AvisoVersao"
 import { Configuracoes } from "./telas/Configuracoes"
 import { Inicio } from "./telas/Inicio"
 import { JogoTela, type PedidoTraducao } from "./telas/Jogo"
@@ -129,6 +130,8 @@ export default function App() {
         )}
         <BotoesJanela />
       </header>
+
+      <AvisoVersao />
 
       {erro && (
         <p role="alert" className="mx-10 mt-4 rounded-md bg-erro/10 p-3 text-sm text-erro">

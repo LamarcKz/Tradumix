@@ -81,3 +81,10 @@ export interface Progresso {
   etapa: Etapa
   fracao: number
 }
+
+/** Versão nova do Tradumix encontrada no GitHub. `portatil`: o app aberto é a versão portátil. */
+export interface VersaoNova {
+  versao: string
+  notas: string
+  portatil: boolean
+}
