@@ -1,3 +1,8 @@
 [workspace]
 resolver = "3"
-members = ["crates/nucleo"]
+members = ["crates/nucleo", "src-tauri"]
+
+# Os programas que compilam as dependências saem com informações de depuração também no
+# release: sem elas o Smart App Control do Windows pode bloquear algum deles.
+[profile.release.build-override]
+debug = true

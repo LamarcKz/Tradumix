@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Tradumix",
+  "mainBinaryName": "Tradumix",
+  "version": "../package.json",
+  "identifier": "io.github.tradumix",
+  "build": {
+    "devUrl": "http://localhost:1430",
+    "frontendDist": "../dist",
+    "beforeDevCommand": "npm run web:dev",
+    "beforeBuildCommand": "npm run web:build"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Tradumix",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 960,
+        "minHeight": 640,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "category": "Game",
+    "shortDescription": "Traduções de jogos de PS2 que preservam o hash do RetroAchievements.",
+    "icon": ["icons/icon.ico", "icons/icon.png"],
+    "externalBin": ["binaries/xdelta3"]
+  }
+}
