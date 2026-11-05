@@ -2,12 +2,14 @@
 
 mod aplicar;
 mod erro;
+mod historico;
 mod iso9660;
 mod pacote;
 mod ps2;
 
 pub use aplicar::{Etapa, Pedido, Resultado, aplicar, conferir, nome_saida};
 pub use erro::Erro;
+pub use historico::{Atualizacao, Entrada, Historico};
 pub use iso9660::Iso;
 pub use pacote::{
     Arquivos, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Jogo, JogoNoCatalogo, Origem, Pacote, PacoteInvalido,
