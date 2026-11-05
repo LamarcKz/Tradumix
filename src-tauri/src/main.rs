@@ -43,6 +43,7 @@ fn main() {
             comandos::abrir_pasta,
             atualizacao::procurar_versao_nova,
             atualizacao::instalar_versao_nova,
+            atualizacao::versao_do_app,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao iniciar o Tradumix");

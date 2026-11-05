@@ -54,3 +54,15 @@ pub async fn instalar_versao_nova(app: AppHandle, estado: State<'_, Atualizacao>
     nova.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
     app.restart()
 }
+
+#[derive(Serialize)]
+pub struct VersaoDoApp {
+    pub versao: String,
+    pub portatil: bool,
+}
+
+/// A versão deste app (a do package.json) e se é a portátil, para a tela Sobre.
+#[tauri::command]
+pub fn versao_do_app(app: AppHandle) -> VersaoDoApp {
+    VersaoDoApp { versao: app.package_info().version.to_string(), portatil: e_portatil() }
+}

@@ -88,3 +88,9 @@ export interface VersaoNova {
   notas: string
   portatil: boolean
 }
+
+/** A versão do app aberto e se é a portátil. */
+export interface VersaoDoApp {
+  versao: string
+  portatil: boolean
+}

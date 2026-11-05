@@ -6,6 +6,7 @@ import { Logo } from "./marca/Logo"
 import { MarcaDev } from "./marca/MarcaDev"
 import { AvisoVersao } from "./telas/AvisoVersao"
 import { Configuracoes } from "./telas/Configuracoes"
+import { Sobre } from "./telas/Sobre"
 import { Inicio } from "./telas/Inicio"
 import { JogoTela, type PedidoTraducao } from "./telas/Jogo"
 import { ProgressoTela } from "./telas/Progresso"
@@ -15,6 +16,7 @@ import type { ListaJogos, Progresso, Resultado } from "./tipos"
 type Tela =
   | { nome: "inicio" }
   | { nome: "config" }
+  | { nome: "sobre" }
   | { nome: "jogo"; jogoId: string; aviso?: string; pedido?: PedidoTraducao }
   | { nome: "progresso"; jogoId: string; comDownload: boolean }
   | { nome: "pronto"; jogoId: string; pacoteId: string; resultado: Resultado }
@@ -123,6 +125,11 @@ export default function App() {
           <MarcaDev />
         </button>
         <div data-tauri-drag-region className="h-full flex-1" />
+        {!ocupado && tela.nome !== "sobre" && (
+          <button onClick={() => setTela({ nome: "sobre" })} className="mr-6 text-sm text-suave hover:text-texto">
+            Sobre
+          </button>
+        )}
         {!ocupado && tela.nome !== "config" && (
           <button onClick={() => setTela({ nome: "config" })} className="mr-6 text-sm text-suave hover:text-texto">
             Configurações
@@ -154,6 +161,7 @@ export default function App() {
             aoAlterarTrailers={(m) => void alterarTrailers(m)}
             pasta={lista.pasta_rascunhos} aoTrocarPasta={trocarPasta} aoVoltar={() => setTela({ nome: "inicio" })} />
         )}
+        {tela.nome === "sobre" && <Sobre aoVoltar={() => setTela({ nome: "inicio" })} />}
         {tela.nome === "jogo" && jogo && (
           <JogoTela
             key={jogo.id}

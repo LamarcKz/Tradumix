@@ -24,6 +24,7 @@ vi.mock("./api", () => ({
   fecharJanela: vi.fn(),
   procurarVersaoNova: vi.fn(() => Promise.resolve(null)),
   instalarVersaoNova: vi.fn(),
+  versaoDoApp: vi.fn(() => Promise.resolve({ versao: "0.1.0", portatil: false })),
 }))
 
 const falso = vi.mocked(api)
@@ -146,4 +147,11 @@ it("configuracoes_troca_a_pasta_de_rascunhos", async () => {
   await userEvent.click(screen.getByRole("button", { name: "Trocar pasta" }))
   expect(falso.escolherPastaRascunhos).toHaveBeenCalledWith("D:/outra")
   expect(await screen.findByText("D:/outra")).toBeInTheDocument()
+})
+
+it("topo_abre_a_tela_sobre", async () => {
+  render(<App />)
+  await userEvent.click(await screen.findByRole("button", { name: "Sobre" }))
+  expect(await screen.findByText("Versão 0.1.0")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Sobre" })).not.toBeInTheDocument()
 })
