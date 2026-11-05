@@ -1,0 +1,13 @@
+[package]
+name = "nucleo"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+description = "Núcleo do Tradumix: leitura de ISO, identidade do jogo, pacotes de tradução e aplicação do patch."
+
+[dependencies]
+thiserror = "2"
+
+[dev-dependencies]
+tempfile = "3"
