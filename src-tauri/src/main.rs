@@ -24,6 +24,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             comandos::listar_jogos,
+            comandos::sincronizar_catalogo,
             comandos::escolher_pasta_rascunhos,
             comandos::conferir_iso,
             comandos::traduzir,

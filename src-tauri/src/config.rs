@@ -10,6 +10,9 @@ pub struct Config {
     /// Pasta com os pacotes de rascunho (modo de teste).
     #[serde(default)]
     pub pasta_rascunhos: Option<PathBuf>,
+    /// Endereço do índice do catálogo; sem valor, usa o do GitHub.
+    #[serde(default)]
+    pub url_catalogo: Option<String>,
 }
 
 impl Config {

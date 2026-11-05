@@ -1,20 +1,28 @@
 //! Comandos que a interface chama. Cada um é uma função interna testável mais um envoltório Tauri.
+//!
+//! As traduções vêm de duas fontes: o catálogo (sincronizado para `<dados>/catalogo`) e, no modo
+//! de teste, a pasta de rascunhos. Um rascunho é identificado como `rascunho:<id>` para não se
+//! confundir com a mesma tradução publicada.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use base64::Engine;
-use nucleo::{Atualizacao, Erro, Estado as EstadoTraducao, Historico, Imagem, Pacote, Pedido, Resultado, Tradutor};
+use nucleo::{Atualizacao, Erro, Estado as EstadoTraducao, Historico, Imagem, Pacote, Pedido, RedeUreq, Resultado, Sincronizacao, Tradutor};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::config::Config;
 
+const URL_CATALOGO: &str = "https://raw.githubusercontent.com/LamarcKz/Tradumix-catalogo/main/indice.json";
+const PREFIXO_RASCUNHO: &str = "rascunho:";
+
 /// Estado compartilhado do app.
 pub struct Estado {
     dados: PathBuf,
     config: Mutex<Config>,
+    sincronizacao: Mutex<Option<Sincronizacao>>,
     cancelar: Arc<AtomicBool>,
     traduzindo: Arc<AtomicBool>,
     fechar_ao_terminar: Arc<AtomicBool>,
@@ -26,6 +34,7 @@ impl Estado {
         Estado {
             dados,
             config: Mutex::new(config),
+            sincronizacao: Mutex::new(None),
             cancelar: Arc::new(AtomicBool::new(false)),
             traduzindo: Arc::new(AtomicBool::new(false)),
             fechar_ao_terminar: Arc::new(AtomicBool::new(false)),
@@ -47,14 +56,32 @@ impl Estado {
         self.config.lock().unwrap().pasta_rascunhos.clone()
     }
 
+    fn url_catalogo(&self) -> String {
+        self.config.lock().unwrap().url_catalogo.clone().unwrap_or_else(|| URL_CATALOGO.to_string())
+    }
+
+    fn cache(&self) -> PathBuf {
+        self.dados.join("catalogo")
+    }
+
     fn arquivo_historico(&self) -> PathBuf {
         self.dados.join("historico.json")
+    }
+
+    fn sincronizacao(&self) -> Sincronizacao {
+        self.sincronizacao.lock().unwrap().clone().unwrap_or_else(|| sincronizacao_inicial(&self.cache()))
+    }
+
+    fn lista(&self) -> ListaJogos {
+        let historico = Historico::carregar(&self.arquivo_historico());
+        montar_lista(&self.cache(), self.pasta_rascunhos().as_deref(), &historico, &self.sincronizacao(), &hoje())
     }
 }
 
 #[derive(Debug, Serialize)]
 pub struct TraducaoDto {
     pub id: String,
+    pub origem: &'static str,
     pub versao: String,
     pub estado: EstadoTraducao,
     pub idioma: String,
@@ -67,6 +94,10 @@ pub struct TraducaoDto {
     pub limitacoes: Vec<String>,
     pub data: String,
     pub fundo: Option<String>,
+    pub novo: bool,
+    pub patch_disponivel: bool,
+    /// Tamanho do patch a baixar, quando ele ainda não está no PC.
+    pub tamanho_download: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -90,6 +121,7 @@ pub struct ListaJogos {
     pub invalidos: Vec<InvalidoDto>,
     pub atualizacoes: Vec<Atualizacao>,
     pub pasta_rascunhos: Option<String>,
+    pub catalogo: Sincronizacao,
 }
 
 #[derive(Debug, Serialize)]
@@ -106,6 +138,10 @@ struct Progresso {
     fracao: f32,
 }
 
+fn hoje() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
+}
+
 fn data_url(caminho: &Path) -> Option<String> {
     let bytes = std::fs::read(caminho).ok()?;
     let ext = caminho.extension()?.to_string_lossy().to_lowercase();
@@ -118,66 +154,95 @@ fn data_url(caminho: &Path) -> Option<String> {
     Some(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
 }
 
-fn carregar(pasta: Option<&Path>) -> nucleo::CargaPacotes {
-    pasta.map(nucleo::carregar_pacotes).unwrap_or_default()
+/// Antes da primeira sincronização da sessão: a data da última que deu certo, sem aviso.
+pub fn sincronizacao_inicial(cache: &Path) -> Sincronizacao {
+    let atualizado_em = std::fs::read_to_string(cache.join("sincronizado.txt")).ok().map(|t| t.trim().to_string());
+    Sincronizacao { offline: false, atualizado_em, aviso: None }
 }
 
-pub fn montar_lista(pasta: Option<&Path>, historico: &Historico) -> ListaJogos {
-    let carga = carregar(pasta);
-    let jogos = nucleo::agrupar_por_jogo(&carga.pacotes)
-        .into_iter()
-        .map(|j| {
-            let pacotes: Vec<&Pacote> = j.pacotes.iter().filter_map(|id| carga.pacotes.iter().find(|p| &p.ficha.id == id)).collect();
-            let capa = pacotes.iter().find_map(|p| p.imagem(Imagem::Capa).and_then(|c| data_url(&c)));
-            let traducoes = pacotes
-                .iter()
-                .map(|p| {
-                    let f = &p.ficha;
-                    TraducaoDto {
-                        id: f.id.clone(),
-                        versao: f.versao.clone(),
-                        estado: f.estado,
-                        idioma: f.idioma.clone(),
-                        regiao: f.origem.regiao.nome().to_string(),
-                        serial: f.origem.serial.clone(),
-                        tradutores: f.tradutores.clone(),
-                        permissao: f.permissao.clone(),
-                        descricao: f.descricao.clone(),
-                        traduzido: f.traduzido.clone(),
-                        limitacoes: f.limitacoes.clone(),
-                        data: f.data.clone(),
-                        fundo: p.imagem(Imagem::Fundo).and_then(|c| data_url(&c)),
-                    }
-                })
-                .collect();
-            JogoDto { id: j.id, nome: j.nome, console: j.console, capa, traducoes }
-        })
-        .collect();
+/// Sincroniza o catálogo. Endereços `http://127.0.0.1` só valem quando configurados de propósito (testes).
+pub fn sincronizar_interno(cache: &Path, url: &str) -> Sincronizacao {
+    let local = url.starts_with("http://127.0.0.1");
+    nucleo::sincronizar(&RedeUreq::novo(), url, cache, local)
+}
+
+/// Todas as traduções, cada uma com o id que a interface usa e de onde veio.
+fn todas(cache: &Path, rascunhos: Option<&Path>) -> (Vec<(String, &'static str, Pacote)>, Vec<nucleo::PacoteInvalido>) {
+    let catalogo = nucleo::carregar_pacotes(cache);
+    let mut lista: Vec<(String, &'static str, Pacote)> =
+        catalogo.pacotes.into_iter().map(|p| (p.ficha.id.clone(), "catalogo", p)).collect();
+    let mut invalidos = Vec::new();
+    if let Some(pasta) = rascunhos {
+        let carga = nucleo::carregar_pacotes(pasta);
+        lista.extend(carga.pacotes.into_iter().map(|p| (format!("{PREFIXO_RASCUNHO}{}", p.ficha.id), "rascunho", p)));
+        invalidos = carga.invalidos;
+    }
+    (lista, invalidos)
+}
+
+pub fn achar_pacote(cache: &Path, rascunhos: Option<&Path>, id: &str) -> Option<Pacote> {
+    todas(cache, rascunhos).0.into_iter().find(|(i, _, _)| i == id).map(|(_, _, p)| p)
+}
+
+pub fn montar_lista(cache: &Path, rascunhos: Option<&Path>, historico: &Historico, sinc: &Sincronizacao, hoje: &str) -> ListaJogos {
+    let (todas, invalidos) = todas(cache, rascunhos);
+    let mut jogos: Vec<JogoDto> = Vec::new();
+    for (id, origem, p) in &todas {
+        let f = &p.ficha;
+        let disponivel = p.patch_disponivel();
+        let traducao = TraducaoDto {
+            id: id.clone(),
+            origem,
+            versao: f.versao.clone(),
+            estado: f.estado,
+            idioma: f.idioma.clone(),
+            regiao: f.origem.regiao.nome().to_string(),
+            serial: f.origem.serial.clone(),
+            tradutores: f.tradutores.clone(),
+            permissao: f.permissao.clone(),
+            descricao: f.descricao.clone(),
+            traduzido: f.traduzido.clone(),
+            limitacoes: f.limitacoes.clone(),
+            data: f.data.clone(),
+            fundo: p.imagem(Imagem::Fundo).and_then(|c| data_url(&c)),
+            novo: *origem == "catalogo" && nucleo::e_novo(f, hoje),
+            patch_disponivel: disponivel,
+            tamanho_download: if disponivel { None } else { f.download.as_ref().map(|d| d.patch.tamanho) },
+        };
+        match jogos.iter_mut().find(|j| j.id == f.jogo.id) {
+            Some(j) => {
+                if j.capa.is_none() {
+                    j.capa = p.imagem(Imagem::Capa).and_then(|c| data_url(&c));
+                }
+                j.traducoes.push(traducao);
+            }
+            None => jogos.push(JogoDto {
+                id: f.jogo.id.clone(),
+                nome: f.jogo.nome.clone(),
+                console: f.jogo.console.clone(),
+                capa: p.imagem(Imagem::Capa).and_then(|c| data_url(&c)),
+                traducoes: vec![traducao],
+            }),
+        }
+    }
+    jogos.sort_by(|a, b| a.nome.to_lowercase().cmp(&b.nome.to_lowercase()));
+    let pacotes: Vec<Pacote> = todas.iter().filter(|(_, o, _)| *o == "catalogo").map(|(_, _, p)| p.clone()).collect();
     ListaJogos {
         jogos,
-        invalidos: carga
-            .invalidos
-            .into_iter()
-            .map(|i| InvalidoDto { pasta: i.pasta.to_string_lossy().into_owned(), motivo: i.motivo })
-            .collect(),
-        atualizacoes: historico.atualizacoes(&carga.pacotes),
-        pasta_rascunhos: pasta.map(|p| p.to_string_lossy().into_owned()),
+        invalidos: invalidos.into_iter().map(|i| InvalidoDto { pasta: i.pasta.to_string_lossy().into_owned(), motivo: i.motivo }).collect(),
+        atualizacoes: historico.atualizacoes(&pacotes),
+        pasta_rascunhos: rascunhos.map(|p| p.to_string_lossy().into_owned()),
+        catalogo: sinc.clone(),
     }
 }
 
-pub fn conferir_interno(pacotes: &[Pacote], pacote_id: &str, iso: &Path) -> Result<ConferenciaDto, String> {
-    let pacote = pacotes.iter().find(|p| p.ficha.id == pacote_id).ok_or("Tradução não encontrada.")?;
+pub fn conferir_interno(pacote: &Pacote, iso: &Path) -> ConferenciaDto {
     let saida = nucleo::nome_saida(&pacote.ficha, iso);
     let (serve, mensagem) = match nucleo::conferir(pacote, iso) {
         Ok(_) => (true, None),
         Err(e) => (false, Some(e.mensagem())),
     };
-    Ok(ConferenciaDto {
-        serve,
-        mensagem,
-        ja_existe: saida.exists(),
-        saida_sugerida: saida.to_string_lossy().into_owned(),
-    })
+    ConferenciaDto { serve, mensagem, ja_existe: saida.exists(), saida_sugerida: saida.to_string_lossy().into_owned() }
 }
 
 /// O xdelta3 vai ao lado do executável do app (sidecar do Tauri).
@@ -189,8 +254,15 @@ fn caminho_xdelta3() -> Result<PathBuf, String> {
 
 #[tauri::command]
 pub fn listar_jogos(estado: State<'_, Estado>) -> ListaJogos {
-    let historico = Historico::carregar(&estado.arquivo_historico());
-    montar_lista(estado.pasta_rascunhos().as_deref(), &historico)
+    estado.lista()
+}
+
+#[tauri::command]
+pub async fn sincronizar_catalogo(estado: State<'_, Estado>) -> Result<ListaJogos, String> {
+    let (cache, url) = (estado.cache(), estado.url_catalogo());
+    let sinc = tauri::async_runtime::spawn_blocking(move || sincronizar_interno(&cache, &url)).await.map_err(|e| e.to_string())?;
+    *estado.sincronizacao.lock().unwrap() = Some(sinc);
+    Ok(estado.lista())
 }
 
 #[tauri::command]
@@ -200,13 +272,13 @@ pub fn escolher_pasta_rascunhos(estado: State<'_, Estado>, caminho: String) -> R
         config.pasta_rascunhos = Some(PathBuf::from(&caminho));
         config.salvar(&estado.dados.join("config.json"))?;
     }
-    Ok(listar_jogos(estado))
+    Ok(estado.lista())
 }
 
 #[tauri::command]
 pub fn conferir_iso(estado: State<'_, Estado>, pacote_id: String, iso: String) -> Result<ConferenciaDto, String> {
-    let carga = carregar(estado.pasta_rascunhos().as_deref());
-    conferir_interno(&carga.pacotes, &pacote_id, Path::new(&iso))
+    let pacote = achar_pacote(&estado.cache(), estado.pasta_rascunhos().as_deref(), &pacote_id).ok_or("Tradução não encontrada.")?;
+    Ok(conferir_interno(&pacote, Path::new(&iso)))
 }
 
 #[tauri::command]
@@ -226,15 +298,16 @@ pub async fn traduzir(
     let app_fim = app.clone();
     let cancelar = estado.cancelar.clone();
     cancelar.store(false, Ordering::SeqCst);
-    let pasta = estado.pasta_rascunhos();
+    let (cache, rascunhos) = (estado.cache(), estado.pasta_rascunhos());
     let arquivo_historico = estado.arquivo_historico();
     let tarefa = tauri::async_runtime::spawn_blocking(move || -> Result<Resultado, String> {
-        let carga = carregar(pasta.as_deref());
-        let pacote = carga.pacotes.into_iter().find(|p| p.ficha.id == pacote_id).ok_or("Tradução não encontrada.")?;
+        let pacote = achar_pacote(&cache, rascunhos.as_deref(), &pacote_id).ok_or("Tradução não encontrada.")?;
         let pedido = Pedido { iso_original: PathBuf::from(iso), saida: PathBuf::from(saida), sobrescrever, xdelta3: caminho_xdelta3()? };
-        let resultado = nucleo::aplicar(
+        let rede = RedeUreq::novo();
+        let resultado = nucleo::aplicar_com_rede(
             &pacote,
             &pedido,
+            Some(&rede),
             &mut |etapa, fracao| {
                 let _ = app.emit("progresso", Progresso { etapa, fracao });
             },
@@ -242,7 +315,7 @@ pub async fn traduzir(
         )
         .map_err(|e: Erro| e.mensagem())?;
         let mut historico = Historico::carregar(&arquivo_historico);
-        historico.registrar(&pacote, &resultado, &chrono::Local::now().format("%Y-%m-%d").to_string());
+        historico.registrar(&pacote, &resultado, &hoje());
         let _ = historico.salvar(&arquivo_historico);
         Ok(resultado)
     });
@@ -276,9 +349,12 @@ mod comum;
 #[cfg(test)]
 mod testes {
     use super::*;
+    use comum::servidor::{Resposta, Servidor};
     use std::fs;
 
     const CNF: &[u8] = b"BOOT2 = cdrom0:\\SCUS_972.65;1\r\n";
+    const HASH: &str = "f51c94dd47cc2eb385d5733389428121";
+    const HOJE: &str = "2026-11-05";
 
     fn pasta_com_pacote(raiz: &Path, hash: &str) {
         pasta_com_pacote_de_tamanho(raiz, hash, 40960)
@@ -302,17 +378,86 @@ mod testes {
         .unwrap();
     }
 
+    /// Catálogo de teste com o Jak II publicado (mesmo id do rascunho).
+    fn catalogo(cache: &Path) -> (Servidor, Sincronizacao) {
+        let s = Servidor::novo();
+        let fichas = vec![comum::ficha_catalogo("jak2-usa-ptbr", "1.0", &s.url(""), HASH, 100, b"PATCH", None)];
+        s.definir("/indice.json", Resposta::Ok(comum::indice(&fichas)));
+        let sinc = sincronizar_interno(cache, &s.url("/indice.json"));
+        (s, sinc)
+    }
+
     #[test]
     fn lista_jogos_de_pasta_de_rascunhos() {
         let raiz = tempfile::tempdir().unwrap();
-        pasta_com_pacote(raiz.path(), "f51c94dd47cc2eb385d5733389428121");
-        let lista = montar_lista(Some(raiz.path()), &Historico::default());
+        let cache = tempfile::tempdir().unwrap();
+        pasta_com_pacote(raiz.path(), HASH);
+        let lista = montar_lista(cache.path(), Some(raiz.path()), &Historico::default(), &sincronizacao_inicial(cache.path()), HOJE);
         assert_eq!(lista.jogos.len(), 1);
         assert_eq!(lista.jogos[0].nome, "Jak II");
-        assert_eq!(lista.jogos[0].traducoes.len(), 1);
-        assert_eq!(lista.jogos[0].traducoes[0].regiao, "USA");
+        let t = &lista.jogos[0].traducoes[0];
+        assert_eq!(t.regiao, "USA");
+        assert_eq!(t.id, "rascunho:jak2-usa-ptbr");
+        assert_eq!(t.origem, "rascunho");
+        assert!(t.patch_disponivel);
         assert!(lista.jogos[0].capa.as_deref().unwrap().starts_with("data:image/png;base64,"));
         assert_eq!(lista.pasta_rascunhos.as_deref(), Some(raiz.path().to_string_lossy().as_ref()));
+    }
+
+    #[test]
+    fn lista_junta_catalogo_e_rascunhos() {
+        let raiz = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        let (_s, sinc) = catalogo(cache.path());
+        assert!(!sinc.offline, "{:?}", sinc.aviso);
+        let p = raiz.path().join("outro");
+        pasta_com_pacote(&p, HASH);
+        let ficha = p.join("jak2").join("ficha.json");
+        let texto = fs::read_to_string(&ficha)
+            .unwrap()
+            .replace(r#""id":"jak2","nome":"Jak II""#, r#""id":"sly","nome":"Sly Cooper""#)
+            .replace("jak2-usa-ptbr", "sly-ptbr");
+        fs::write(&ficha, texto).unwrap();
+        let lista = montar_lista(cache.path(), Some(raiz.path()), &Historico::default(), &sinc, HOJE);
+        let nomes: Vec<&str> = lista.jogos.iter().map(|j| j.nome.as_str()).collect();
+        assert_eq!(nomes, vec!["Jak II", "Sly Cooper"]);
+        let jak = &lista.jogos[0].traducoes[0];
+        assert_eq!(jak.origem, "catalogo");
+        assert!(jak.novo);
+        assert_eq!(jak.tamanho_download, Some(5));
+    }
+
+    #[test]
+    fn rascunho_com_mesmo_id_aparece_separado() {
+        let raiz = tempfile::tempdir().unwrap();
+        let cache = tempfile::tempdir().unwrap();
+        let (_s, sinc) = catalogo(cache.path());
+        pasta_com_pacote(raiz.path(), HASH);
+        let lista = montar_lista(cache.path(), Some(raiz.path()), &Historico::default(), &sinc, HOJE);
+        assert_eq!(lista.jogos.len(), 1);
+        let ids: Vec<&str> = lista.jogos[0].traducoes.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["jak2-usa-ptbr", "rascunho:jak2-usa-ptbr"]);
+        assert!(achar_pacote(cache.path(), Some(raiz.path()), "rascunho:jak2-usa-ptbr").unwrap().patch_disponivel());
+        assert!(!achar_pacote(cache.path(), Some(raiz.path()), "jak2-usa-ptbr").unwrap().patch_disponivel());
+    }
+
+    #[test]
+    fn lista_sem_rede_usa_o_cache_e_avisa() {
+        let cache = tempfile::tempdir().unwrap();
+        catalogo(cache.path());
+        let sinc = sincronizar_interno(cache.path(), "http://127.0.0.1:9/indice.json");
+        let lista = montar_lista(cache.path(), None, &Historico::default(), &sinc, HOJE);
+        assert!(lista.catalogo.offline);
+        assert!(lista.catalogo.aviso.as_deref().unwrap().starts_with("Sem conexão"));
+        assert_eq!(lista.jogos.len(), 1);
+    }
+
+    #[test]
+    fn traducao_sem_patch_baixado_informa_patch_disponivel_falso() {
+        let cache = tempfile::tempdir().unwrap();
+        let (_s, sinc) = catalogo(cache.path());
+        let lista = montar_lista(cache.path(), None, &Historico::default(), &sinc, HOJE);
+        assert!(!lista.jogos[0].traducoes[0].patch_disponivel);
     }
 
     /// Os links dos créditos abrem no navegador pelo plugin opener; sem esta permissão o clique não faz nada.
@@ -336,8 +481,9 @@ mod testes {
     }
 
     #[test]
-    fn sem_pasta_a_lista_fica_vazia() {
-        let lista = montar_lista(None, &Historico::default());
+    fn sem_pasta_e_sem_catalogo_a_lista_fica_vazia() {
+        let cache = tempfile::tempdir().unwrap();
+        let lista = montar_lista(cache.path(), None, &Historico::default(), &sincronizacao_inicial(cache.path()), HOJE);
         assert!(lista.jogos.is_empty());
         assert!(lista.pasta_rascunhos.is_none());
     }
@@ -345,14 +491,14 @@ mod testes {
     #[test]
     fn conferir_iso_de_outro_jogo_devolve_mensagem() {
         let raiz = tempfile::tempdir().unwrap();
-        pasta_com_pacote(raiz.path(), "f51c94dd47cc2eb385d5733389428121");
+        pasta_com_pacote(raiz.path(), HASH);
         let outra = comum::gravar(
             raiz.path(),
             "outra.iso",
             &comum::iso_sintetica(&[("SYSTEM.CNF", b"BOOT2 = cdrom0:\\SLES_123.45;1\r\n"), ("SLES_123.45", b"ELF")]),
         );
-        let pacotes = nucleo::carregar_pacotes(raiz.path()).pacotes;
-        let c = conferir_interno(&pacotes, "jak2-usa-ptbr", &outra).unwrap();
+        let pacote = nucleo::carregar_pacotes(raiz.path()).pacotes.remove(0);
+        let c = conferir_interno(&pacote, &outra);
         assert!(!c.serve);
         assert!(c.mensagem.unwrap().contains("SCUS-97265"));
     }
@@ -364,8 +510,8 @@ mod testes {
         let caminho = comum::gravar(raiz.path(), "original.iso", &iso);
         let hash = nucleo::identificar(&caminho).unwrap().hash_ra;
         pasta_com_pacote_de_tamanho(&raiz.path().join("pacotes"), &hash, iso.len() as u64);
-        let pacotes = nucleo::carregar_pacotes(&raiz.path().join("pacotes")).pacotes;
-        let c = conferir_interno(&pacotes, "jak2-usa-ptbr", &caminho).unwrap();
+        let pacote = nucleo::carregar_pacotes(&raiz.path().join("pacotes")).pacotes.remove(0);
+        let c = conferir_interno(&pacote, &caminho);
         assert!(c.serve, "{:?}", c.mensagem);
         assert_eq!(c.saida_sugerida, raiz.path().join("Jak II (USA) PT-BR v1.0.iso").to_string_lossy());
         assert!(!c.ja_existe);
