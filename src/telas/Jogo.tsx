@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import * as api from "../api"
 import type { Conferencia, EstadoTraducao, Jogo } from "../tipos"
@@ -14,6 +14,8 @@ export interface PedidoTraducao {
 interface Props {
   jogo: Jogo
   aviso?: string | null
+  /** O pedido que voltou com erro: a tela reabre com a mesma ISO e a mesma saída. */
+  pedidoAnterior?: PedidoTraducao
   aoVoltar: () => void
   aoTraduzir: (pedido: PedidoTraducao) => void
 }
@@ -24,14 +26,35 @@ function nomeDoArquivo(caminho: string) {
   return caminho.split(/[\\/]/).pop() ?? caminho
 }
 
-export function JogoTela({ jogo, aviso, aoVoltar, aoTraduzir }: Props) {
-  const [traducaoId, setTraducaoId] = useState(jogo.traducoes[0]?.id ?? "")
+export function JogoTela({ jogo, aviso, pedidoAnterior, aoVoltar, aoTraduzir }: Props) {
+  const [traducaoId, setTraducaoId] = useState(pedidoAnterior?.pacoteId ?? jogo.traducoes[0]?.id ?? "")
   const [iso, setIso] = useState<string | null>(null)
   const [conferencia, setConferencia] = useState<Conferencia | null>(null)
   const [saida, setSaida] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [conferindo, setConferindo] = useState(false)
   const traducao = jogo.traducoes.find((t) => t.id === traducaoId) ?? jogo.traducoes[0]
+
+  // Voltando de um erro: confere de novo a mesma ISO e mantém a saída escolhida.
+  useEffect(() => {
+    if (!pedidoAnterior) return
+    let ativo = true
+    void (async () => {
+      try {
+        const c = await api.conferirIso(pedidoAnterior.pacoteId, pedidoAnterior.iso)
+        const existe = c.serve ? await api.arquivoExiste(pedidoAnterior.saida) : false
+        if (!ativo) return
+        setIso(pedidoAnterior.iso)
+        setConferencia({ ...c, ja_existe: existe })
+        setSaida(pedidoAnterior.saida)
+      } catch (e) {
+        if (ativo) setErro(String(e))
+      }
+    })()
+    return () => {
+      ativo = false
+    }
+  }, [pedidoAnterior])
 
   async function selecionarIso() {
     const escolhida = await api.escolherArquivoIso()
@@ -54,8 +77,10 @@ export function JogoTela({ jogo, aviso, aoVoltar, aoTraduzir }: Props) {
   async function escolherOutraPasta() {
     const pasta = await api.escolherPasta()
     if (!pasta || !conferencia) return
-    setSaida(`${pasta.replace(/[\\/]$/, "")}\\${nomeDoArquivo(conferencia.saida_sugerida)}`)
-    setConferencia({ ...conferencia, ja_existe: false })
+    const nova = `${pasta.replace(/[\\/]$/, "")}\\${nomeDoArquivo(conferencia.saida_sugerida)}`
+    const existe = await api.arquivoExiste(nova)
+    setSaida(nova)
+    setConferencia({ ...conferencia, ja_existe: existe })
   }
 
   function traduzir(sobrescrever: boolean) {

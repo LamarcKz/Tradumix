@@ -11,7 +11,7 @@ import type { ListaJogos, Progresso, Resultado } from "./tipos"
 type Tela =
   | { nome: "inicio" }
   | { nome: "config" }
-  | { nome: "jogo"; jogoId: string; aviso?: string }
+  | { nome: "jogo"; jogoId: string; aviso?: string; pedido?: PedidoTraducao }
   | { nome: "progresso"; jogoId: string }
   | { nome: "pronto"; jogoId: string; pacoteId: string; resultado: Resultado }
 
@@ -56,7 +56,7 @@ export default function App() {
       setTela({ nome: "pronto", jogoId, pacoteId: pedido.pacoteId, resultado })
       void recarregar()
     } catch (e) {
-      setTela({ nome: "jogo", jogoId, aviso: String(e) })
+      setTela({ nome: "jogo", jogoId, aviso: String(e), pedido })
     } finally {
       parar()
     }
@@ -98,6 +98,7 @@ export default function App() {
             key={jogo.id}
             jogo={jogo}
             aviso={tela.aviso}
+            pedidoAnterior={tela.pedido}
             aoVoltar={() => setTela({ nome: "inicio" })}
             aoTraduzir={(pedido) => void traduzir(jogo.id, pedido)}
           />

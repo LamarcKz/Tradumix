@@ -17,6 +17,7 @@ pub struct Estado {
     config: Mutex<Config>,
     cancelar: Arc<AtomicBool>,
     traduzindo: Arc<AtomicBool>,
+    fechar_ao_terminar: Arc<AtomicBool>,
 }
 
 impl Estado {
@@ -27,7 +28,19 @@ impl Estado {
             config: Mutex::new(config),
             cancelar: Arc::new(AtomicBool::new(false)),
             traduzindo: Arc::new(AtomicBool::new(false)),
+            fechar_ao_terminar: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// A janela pediu para fechar. Com uma tradução em andamento, cancela e devolve `true`:
+    /// o fechamento espera o núcleo apagar a ISO parcial e acontece no fim de `traduzir`.
+    pub fn pedir_fechamento(&self) -> bool {
+        if !self.traduzindo.load(Ordering::SeqCst) {
+            return false;
+        }
+        self.fechar_ao_terminar.store(true, Ordering::SeqCst);
+        self.cancelar.store(true, Ordering::SeqCst);
+        true
     }
 
     fn pasta_rascunhos(&self) -> Option<PathBuf> {
@@ -209,6 +222,8 @@ pub async fn traduzir(
         return Err("Já existe uma tradução em andamento.".into());
     }
     let traduzindo = estado.traduzindo.clone();
+    let fechar_ao_terminar = estado.fechar_ao_terminar.clone();
+    let app_fim = app.clone();
     let cancelar = estado.cancelar.clone();
     cancelar.store(false, Ordering::SeqCst);
     let pasta = estado.pasta_rascunhos();
@@ -233,12 +248,20 @@ pub async fn traduzir(
     });
     let resultado = tarefa.await.map_err(|e| e.to_string()).and_then(|r| r);
     traduzindo.store(false, Ordering::SeqCst);
+    if fechar_ao_terminar.load(Ordering::SeqCst) {
+        app_fim.exit(0);
+    }
     resultado
 }
 
 #[tauri::command]
 pub fn cancelar_traducao(estado: State<'_, Estado>) {
     estado.cancelar.store(true, Ordering::SeqCst);
+}
+
+#[tauri::command]
+pub fn arquivo_existe(caminho: String) -> bool {
+    Path::new(&caminho).exists()
 }
 
 #[tauri::command]
@@ -290,6 +313,26 @@ mod testes {
         assert_eq!(lista.jogos[0].traducoes[0].regiao, "USA");
         assert!(lista.jogos[0].capa.as_deref().unwrap().starts_with("data:image/png;base64,"));
         assert_eq!(lista.pasta_rascunhos.as_deref(), Some(raiz.path().to_string_lossy().as_ref()));
+    }
+
+    /// Os links dos créditos abrem no navegador pelo plugin opener; sem esta permissão o clique não faz nada.
+    #[test]
+    fn janela_pode_abrir_links_dos_creditos() {
+        let texto = include_str!("../capabilities/default.json");
+        let json: serde_json::Value = serde_json::from_str(texto).unwrap();
+        let permissoes: Vec<&str> = json["permissions"].as_array().unwrap().iter().filter_map(|p| p.as_str()).collect();
+        assert!(permissoes.contains(&"opener:allow-open-url"), "{permissoes:?}");
+    }
+
+    #[test]
+    fn fechar_durante_traducao_cancela_e_adia() {
+        let dados = tempfile::tempdir().unwrap();
+        let estado = Estado::novo(dados.path().to_path_buf());
+        assert!(!estado.pedir_fechamento(), "sem tradução, fecha na hora");
+        estado.traduzindo.store(true, Ordering::SeqCst);
+        assert!(estado.pedir_fechamento(), "com tradução, adia o fechamento");
+        assert!(estado.cancelar.load(Ordering::SeqCst));
+        assert!(estado.fechar_ao_terminar.load(Ordering::SeqCst));
     }
 
     #[test]

@@ -16,6 +16,7 @@ vi.mock("./api", () => ({
   aoProgresso: vi.fn(() => () => {}),
   escolherArquivoIso: vi.fn(),
   escolherPasta: vi.fn(),
+  arquivoExiste: vi.fn(),
 }))
 
 const falso = vi.mocked(api)
@@ -77,6 +78,8 @@ it("erro_na_traducao_volta_ao_jogo_com_a_mensagem", async () => {
   await ateTraduzir()
   expect(await screen.findByText("Tradução cancelada.")).toBeInTheDocument()
   expect(screen.getByRole("heading", { name: "Jak II" })).toBeInTheDocument()
+  expect(await screen.findByRole("button", { name: "Traduzir" })).toBeInTheDocument()
+  expect(screen.getByText("C:/jogos/jak2.iso")).toBeInTheDocument()
 })
 
 it("configuracoes_troca_a_pasta_de_rascunhos", async () => {

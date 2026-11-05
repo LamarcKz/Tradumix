@@ -19,6 +19,7 @@ vi.mock("../api", () => ({
   aoProgresso: vi.fn(() => () => {}),
   escolherArquivoIso: vi.fn(),
   escolherPasta: vi.fn(),
+  arquivoExiste: vi.fn(),
 }))
 
 const falso = vi.mocked(api)
@@ -150,6 +151,39 @@ describe("Jogo", () => {
     expect(screen.queryByRole("button", { name: "Traduzir" })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole("button", { name: "Substituir e traduzir" }))
     expect(traduzir).toHaveBeenCalledWith(expect.objectContaining({ sobrescrever: true }))
+  })
+})
+
+describe("Jogo, outra pasta", () => {
+  it("escolher_outra_pasta_confere_se_o_arquivo_existe", async () => {
+    const traduzir = vi.fn()
+    falso.escolherArquivoIso.mockResolvedValue("C:/jogos/jak2.iso")
+    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
+    falso.escolherPasta.mockResolvedValue("D:/outra")
+    falso.arquivoExiste.mockResolvedValue(true)
+    render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={traduzir} />)
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar ISO" }))
+    await userEvent.click(await screen.findByRole("button", { name: "Escolher outra pasta" }))
+    expect(falso.arquivoExiste).toHaveBeenCalledWith("D:/outra\\Jak II (USA) PT-BR v1.0.iso")
+    await userEvent.click(await screen.findByRole("button", { name: "Substituir e traduzir" }))
+    expect(traduzir).toHaveBeenCalledWith(expect.objectContaining({ saida: "D:/outra\\Jak II (USA) PT-BR v1.0.iso", sobrescrever: true }))
+  })
+
+  it("volta_de_um_erro_com_a_iso_e_a_saida_escolhidas", async () => {
+    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
+    falso.arquivoExiste.mockResolvedValue(true)
+    render(
+      <JogoTela
+        jogo={jak2}
+        aviso="Já existe um arquivo em D:/outra."
+        pedidoAnterior={{ pacoteId: "jak2-usa-ptbr", iso: "C:/jogos/jak2.iso", saida: "D:/outra\\Jak II (USA) PT-BR v1.0.iso", sobrescrever: false }}
+        aoVoltar={() => {}}
+        aoTraduzir={() => {}}
+      />,
+    )
+    expect(await screen.findByText("D:/outra\\Jak II (USA) PT-BR v1.0.iso")).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Substituir e traduzir" })).toBeInTheDocument()
+    expect(screen.getByText("C:/jogos/jak2.iso")).toBeInTheDocument()
   })
 })
 

@@ -44,25 +44,42 @@ pub struct Resultado {
 pub fn nome_saida(ficha: &Ficha, iso_original: &Path) -> PathBuf {
     let pasta = iso_original.parent().unwrap_or(Path::new(""));
     let nome = format!(
-        "{} ({}) {} v{}.iso",
+        "{} ({}) {} v{}",
         ficha.jogo.nome,
         ficha.origem.regiao.nome(),
         ficha.idioma.to_uppercase(),
         ficha.versao
     );
-    pasta.join(nome)
+    pasta.join(format!("{}.iso", nome_de_arquivo_seguro(&nome)))
+}
+
+/// Tira o que o Windows não aceita num nome de arquivo (e qualquer separador de pasta):
+/// `:` vira ` -` ("Jogo: Subtítulo" → "Jogo - Subtítulo"), o resto some.
+fn nome_de_arquivo_seguro(nome: &str) -> String {
+    let mut limpo = String::with_capacity(nome.len());
+    for c in nome.chars() {
+        match c {
+            ':' => limpo.push_str(" -"),
+            '<' | '>' | '"' | '/' | '\\' | '|' | '?' | '*' => limpo.push(' '),
+            c if c.is_control() => {}
+            c => limpo.push(c),
+        }
+    }
+    let junto = limpo.split_whitespace().collect::<Vec<_>>().join(" ");
+    let aparado = junto.trim_matches(|c: char| c == '.' || c == ' ').to_string();
+    if aparado.is_empty() { "Jogo".into() } else { aparado }
 }
 
 /// Confere se a ISO é a que a tradução espera, sem ler a imagem inteira.
 pub fn conferir(pacote: &Pacote, iso_original: &Path) -> Result<IdentidadePs2, Erro> {
     let id = identificar(iso_original)?;
     let origem = &pacote.ficha.origem;
-    if !id.serial.eq_ignore_ascii_case(&origem.serial) || !id.hash_ra.eq_ignore_ascii_case(&origem.hash_ra) {
-        return Err(Erro::JogoErrado {
-            esperado_nome: format!("{} ({})", pacote.ficha.jogo.nome, origem.regiao.nome()),
-            esperado_serial: origem.serial.clone(),
-            encontrado_serial: id.serial,
-        });
+    let esperado_nome = format!("{} ({})", pacote.ficha.jogo.nome, origem.regiao.nome());
+    if !id.serial.eq_ignore_ascii_case(&origem.serial) {
+        return Err(Erro::JogoErrado { esperado_nome, esperado_serial: origem.serial.clone(), encontrado_serial: id.serial });
+    }
+    if !id.hash_ra.eq_ignore_ascii_case(&origem.hash_ra) {
+        return Err(Erro::VersaoDiferente { esperado_nome, serial: origem.serial.clone() });
     }
     if id.tamanho != origem.tamanho {
         return Err(Erro::TamanhoDiferente { esperado: origem.tamanho, encontrado: id.tamanho });
@@ -137,6 +154,8 @@ fn gerar(
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| Erro::XdeltaFalhou(format!("não foi possível iniciar o xdelta3: {e}")))?;
+    // Se o app fechar de repente, o Windows encerra o xdelta3 junto (o grupo vive até o fim desta função).
+    let _grupo = crate::GrupoDeProcessos::novo().and_then(|g| g.incluir(&filho).map(|()| g)).ok();
     let mut stderr = filho.stderr.take().expect("stderr do xdelta3");
     let leitor = std::thread::spawn(move || {
         let mut texto = String::new();

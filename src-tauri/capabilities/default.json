@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "O que a janela pode pedir ao Tauri: ouvir o progresso e abrir o seletor de arquivos e pastas. Os comandos do app ficam em src/comandos.rs.",
+  "description": "O que a janela pode pedir ao Tauri: ouvir o progresso, abrir o seletor de arquivos e pastas e abrir os links dos créditos no navegador. Os comandos do app ficam em src/comandos.rs.",
   "windows": ["main"],
-  "permissions": ["core:default", "core:event:default", "dialog:allow-open"]
+  "permissions": ["core:default", "core:event:default", "dialog:allow-open", "opener:allow-open-url"]
 }

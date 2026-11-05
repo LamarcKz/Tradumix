@@ -25,6 +25,10 @@ export function cancelarTraducao(): Promise<void> {
   return invoke("cancelar_traducao")
 }
 
+export function arquivoExiste(caminho: string): Promise<boolean> {
+  return invoke("arquivo_existe", { caminho })
+}
+
 export function abrirPasta(caminho: string): Promise<void> {
   return invoke("abrir_pasta", { caminho })
 }

@@ -110,6 +110,44 @@ fn nome_de_saida() {
 }
 
 #[test]
+fn nome_de_saida_troca_caracteres_proibidos_e_fica_na_pasta() {
+    let c = cenario("nome-limpo");
+    let mut ficha = c.pacote.ficha.clone();
+    ficha.jogo.nome = "Metal Gear Solid 3: Snake Eater".into();
+    assert_eq!(nome_saida(&ficha, &c.original), c.raiz.join("Metal Gear Solid 3 - Snake Eater (USA) PT-BR v1.0.iso"));
+
+    ficha.jogo.nome = "..\\..\\fora/aqui?*\"<>|".into();
+    let saida = nome_saida(&ficha, &c.original);
+    assert_eq!(saida.parent().unwrap(), c.raiz);
+    let nome = saida.file_name().unwrap().to_string_lossy().into_owned();
+    assert!(!nome.contains(['\\', '/', ':', '?', '*', '"', '<', '>', '|']), "{nome}");
+    assert!(!nome.starts_with('.'), "{nome}");
+
+    ficha.jogo.nome = "CON".into();
+    let nome = nome_saida(&ficha, &c.original).file_name().unwrap().to_string_lossy().into_owned();
+    assert!(nome.ends_with(".iso") && nome.starts_with("CON "), "{nome}");
+}
+
+#[test]
+fn mesmo_serial_com_executavel_diferente_e_outra_versao() {
+    let c = cenario("outra-versao");
+    let outra = comum::gravar(
+        &c.raiz,
+        "greatest hits.iso",
+        &comum::iso_sintetica(&[("SYSTEM.CNF", CNF), ("SCUS_972.65", b"outro executavel")]),
+    );
+    match conferir(&c.pacote, &outra) {
+        Err(Erro::VersaoDiferente { esperado_nome, serial }) => {
+            assert_eq!(esperado_nome, "Jak II (USA)");
+            assert_eq!(serial, "SCUS-97265");
+        }
+        outro => panic!("esperava VersaoDiferente, veio {outro:?}"),
+    }
+    let msg = Erro::VersaoDiferente { esperado_nome: "Jak II (USA)".into(), serial: "SCUS-97265".into() }.mensagem();
+    assert!(msg.contains("outra versão"), "{msg}");
+}
+
+#[test]
 fn iso_de_outro_jogo_e_recusada() {
     let c = cenario("outro");
     let outra = comum::gravar(

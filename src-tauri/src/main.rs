@@ -15,12 +15,20 @@ fn main() {
             app.manage(comandos::Estado::novo(dados));
             Ok(())
         })
+        .on_window_event(|janela, evento| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = evento {
+                if janela.state::<comandos::Estado>().pedir_fechamento() {
+                    api.prevent_close();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             comandos::listar_jogos,
             comandos::escolher_pasta_rascunhos,
             comandos::conferir_iso,
             comandos::traduzir,
             comandos::cancelar_traducao,
+            comandos::arquivo_existe,
             comandos::abrir_pasta,
         ])
         .run(tauri::generate_context!())

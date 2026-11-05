@@ -32,6 +32,8 @@ pub enum Erro {
     Cancelado,
     #[error("a ISO já está traduzida")]
     JaTraduzida,
+    #[error("mesmo jogo ({serial}), outra versão do disco")]
+    VersaoDiferente { esperado_nome: String, serial: String },
 }
 
 impl Erro {
@@ -60,6 +62,9 @@ impl Erro {
                 "Não foi possível aplicar a tradução. A ISO pode ser um dump diferente ou estar danificada. Detalhe: {detalhe}"
             ),
             Erro::Cancelado => "Tradução cancelada.".into(),
+            Erro::VersaoDiferente { esperado_nome, serial } => format!(
+                "Esta ISO é do jogo certo ({serial}), mas de outra versão do disco: o executável é diferente do usado na tradução. Esta tradução precisa da {esperado_nome} original."
+            ),
             Erro::JaTraduzida => {
                 "Esta ISO já está com esta tradução. Para gerar de novo, selecione a ISO original, sem tradução.".into()
             }
