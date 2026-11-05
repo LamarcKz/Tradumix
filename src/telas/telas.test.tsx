@@ -20,6 +20,9 @@ vi.mock("../api", () => ({
   escolherArquivoIso: vi.fn(),
   escolherPasta: vi.fn(),
   arquivoExiste: vi.fn(),
+  minimizarJanela: vi.fn(),
+  alternarMaximizarJanela: vi.fn(),
+  fecharJanela: vi.fn(),
 }))
 
 const falso = vi.mocked(api)

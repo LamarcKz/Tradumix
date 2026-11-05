@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react"
 
 import * as api from "./api"
+import { BotoesJanela } from "./marca/BotoesJanela"
 import { Logo } from "./marca/Logo"
 import { Configuracoes } from "./telas/Configuracoes"
 import { Inicio } from "./telas/Inicio"
@@ -70,7 +71,11 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-16 shrink-0 items-center justify-between border-b border-white/[0.05] bg-fundo/90 px-10 backdrop-blur">
+      {/* O topo é a barra da janela: arrasta a janela (data-tauri-drag-region) e tem os botões dela. */}
+      <header
+        data-tauri-drag-region
+        className="flex h-14 shrink-0 select-none items-center border-b border-white/[0.05] bg-fundo pl-10"
+      >
         <button
           onClick={() => !ocupado && setTela({ nome: "inicio" })}
           aria-label="Tradumix, voltar ao início"
@@ -78,11 +83,13 @@ export default function App() {
         >
           <Logo />
         </button>
+        <div data-tauri-drag-region className="h-full flex-1" />
         {!ocupado && tela.nome !== "config" && (
-          <button onClick={() => setTela({ nome: "config" })} className="text-sm text-suave hover:text-texto">
+          <button onClick={() => setTela({ nome: "config" })} className="mr-6 text-sm text-suave hover:text-texto">
             Configurações
           </button>
         )}
+        <BotoesJanela />
       </header>
 
       {erro && (

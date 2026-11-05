@@ -17,6 +17,9 @@ vi.mock("./api", () => ({
   escolherArquivoIso: vi.fn(),
   escolherPasta: vi.fn(),
   arquivoExiste: vi.fn(),
+  minimizarJanela: vi.fn(),
+  alternarMaximizarJanela: vi.fn(),
+  fecharJanela: vi.fn(),
 }))
 
 const falso = vi.mocked(api)
@@ -80,6 +83,17 @@ it("erro_na_traducao_volta_ao_jogo_com_a_mensagem", async () => {
   expect(screen.getByRole("heading", { name: "Jak II" })).toBeInTheDocument()
   expect(await screen.findByRole("button", { name: "Traduzir" })).toBeInTheDocument()
   expect(screen.getByText("C:/jogos/jak2.iso")).toBeInTheDocument()
+})
+
+it("topo_tem_os_botoes_da_janela", async () => {
+  render(<App />)
+  await userEvent.click(await screen.findByRole("button", { name: "Minimizar" }))
+  await userEvent.click(screen.getByRole("button", { name: "Maximizar" }))
+  await userEvent.click(screen.getByRole("button", { name: "Fechar" }))
+  expect(falso.minimizarJanela).toHaveBeenCalled()
+  expect(falso.alternarMaximizarJanela).toHaveBeenCalled()
+  expect(falso.fecharJanela).toHaveBeenCalled()
+  expect(document.querySelector("header")).toHaveAttribute("data-tauri-drag-region")
 })
 
 it("configuracoes_troca_a_pasta_de_rascunhos", async () => {
