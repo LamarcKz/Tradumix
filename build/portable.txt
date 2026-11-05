@@ -1,7 +1,8 @@
 Tradumix portátil
 
-Com este arquivo ao lado do Tradumix.exe, o app guarda tudo (configurações, catálogo baixado e
-histórico) na pasta "dados", aqui do lado, e não mexe no Windows. Dá para levar a pasta inteira
-num pen drive.
+Com este arquivo ao lado do Tradumix.exe, o app guarda os dados dele (configurações, catálogo baixado
+e histórico) na pasta "dados", aqui do lado, e não na pasta do Windows. Dá para levar a pasta inteira
+num pen drive. O WebView2 do Windows, que desenha a janela, ainda guarda o cache dele no perfil do
+usuário.
 
 Apagar este arquivo faz o Tradumix usar a pasta normal do Windows, a mesma do app instalado.

@@ -45,7 +45,7 @@ export function AvisoVersao() {
     <section aria-label="Versão nova" className="mx-10 mt-4 rounded-md border border-borda bg-superficie px-4 py-3 text-sm">
       <div className="flex flex-wrap items-center gap-3">
         <p className="font-semibold">Versão {nova.versao} disponível</p>
-        {atualizando && <p className="text-suave">Baixando a versão {nova.versao}… o Tradumix reinicia sozinho.</p>}
+        {atualizando && <p className="text-suave">Instalando a versão {nova.versao}… o Tradumix reinicia sozinho.</p>}
         <div className="flex-1" />
         {nova.notas && (
           <button onClick={() => setNovidades(!novidades)} className="text-suave hover:text-texto">

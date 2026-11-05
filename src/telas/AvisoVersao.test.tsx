@@ -45,7 +45,7 @@ it("atualizar_chama_a_api", async () => {
   render(<AvisoVersao />)
   await userEvent.click(await screen.findByRole("button", { name: "Atualizar" }))
   expect(falso.instalarVersaoNova).toHaveBeenCalledTimes(1)
-  expect(screen.getByText("Baixando a versão 0.2.0… o Tradumix reinicia sozinho.")).toBeInTheDocument()
+  expect(screen.getByText("Instalando a versão 0.2.0… o Tradumix reinicia sozinho.")).toBeInTheDocument()
 })
 
 it("portatil_abre_a_pagina_de_download", async () => {
