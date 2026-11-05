@@ -11,6 +11,7 @@ import { Pronto } from "./Pronto"
 
 vi.mock("../api", () => ({
   listarJogos: vi.fn(),
+  sincronizarCatalogo: vi.fn(),
   escolherPastaRascunhos: vi.fn(),
   conferirIso: vi.fn(),
   traduzir: vi.fn(),
@@ -47,6 +48,10 @@ const jak2: Jogo = {
       limitacoes: ["Algumas texturas continuam em inglês."],
       data: "2026-11-05",
       fundo: null,
+      origem: "catalogo",
+      novo: false,
+      patch_disponivel: true,
+      tamanho_download: null,
     },
   ],
 }
@@ -55,27 +60,61 @@ const lista = (parcial: Partial<ListaJogos> = {}): ListaJogos => ({
   jogos: [jak2, { ...jak2, id: "abc", nome: "Abc", traducoes: [{ ...jak2.traducoes[0], id: "abc-1" }] }],
   invalidos: [],
   atualizacoes: [],
-  pasta_rascunhos: "C:/pacotes",
+  pasta_rascunhos: null,
+  catalogo: { offline: false, atualizado_em: "2026-11-05", aviso: null },
   ...parcial,
 })
+
+const comTraducao = (extra: Partial<Jogo["traducoes"][number]>): Jogo => ({ ...jak2, traducoes: [{ ...jak2.traducoes[0], ...extra }] })
 
 beforeEach(() => vi.clearAllMocks())
 
 describe("Início", () => {
   it("inicio_mostra_um_card_por_jogo", async () => {
     const abrir = vi.fn()
-    render(<Inicio lista={lista()} aoAbrirJogo={abrir} aoEscolherPasta={() => {}} />)
+    render(<Inicio lista={lista()} aoAbrirJogo={abrir} aoTentarDeNovo={() => {}} />)
     const cards = screen.getAllByRole("button", { name: /Abrir/ })
     expect(cards).toHaveLength(2)
     await userEvent.click(screen.getByRole("button", { name: /Abrir Jak II/ }))
     expect(abrir).toHaveBeenCalledWith("jak2")
   })
 
-  it("inicio_sem_pasta_mostra_estado_vazio", async () => {
-    const escolher = vi.fn()
-    render(<Inicio lista={lista({ jogos: [], pasta_rascunhos: null })} aoAbrirJogo={() => {}} aoEscolherPasta={escolher} />)
-    await userEvent.click(screen.getByRole("button", { name: "Escolher pasta de rascunhos (modo de teste)" }))
-    expect(escolher).toHaveBeenCalled()
+  it("inicio_vazio_tem_tentar_de_novo", async () => {
+    const tentar = vi.fn()
+    render(<Inicio lista={lista({ jogos: [] })} aoAbrirJogo={() => {}} aoTentarDeNovo={tentar} />)
+    expect(screen.getByText("Nenhuma tradução disponível ainda.")).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: "Tentar de novo" }))
+    expect(tentar).toHaveBeenCalled()
+  })
+
+  it("inicio_nao_pede_pasta", () => {
+    render(<Inicio lista={lista({ jogos: [] })} aoAbrirJogo={() => {}} aoTentarDeNovo={() => {}} />)
+    expect(screen.queryByText(/pasta/i)).not.toBeInTheDocument()
+  })
+
+  it("inicio_mostra_selo_novo_e_rascunho", () => {
+    const novo = { ...comTraducao({ novo: true }), id: "jak2" }
+    const rascunho = { ...comTraducao({ origem: "rascunho", id: "rascunho:abc" }), id: "abc", nome: "Abc" }
+    render(<Inicio lista={lista({ jogos: [novo, rascunho] })} aoAbrirJogo={() => {}} aoTentarDeNovo={() => {}} />)
+    expect(screen.getAllByText("Novo")).toHaveLength(1)
+    expect(screen.getAllByText("Rascunho")).toHaveLength(1)
+  })
+
+  it("inicio_offline_mostra_aviso_com_data", () => {
+    const aviso = "Sem conexão: mostrando o catálogo baixado em 05/11/2026."
+    render(
+      <Inicio
+        lista={lista({ catalogo: { offline: true, atualizado_em: "2026-11-05", aviso } })}
+        aoAbrirJogo={() => {}}
+        aoTentarDeNovo={() => {}}
+      />,
+    )
+    expect(screen.getByText(aviso)).toBeInTheDocument()
+  })
+
+  it("inicio_mostra_que_esta_atualizando", () => {
+    render(<Inicio lista={lista()} sincronizando aoAbrirJogo={() => {}} aoTentarDeNovo={() => {}} />)
+    expect(screen.getByText("Atualizando o catálogo…")).toBeInTheDocument()
   })
 
   it("inicio_mostra_pacotes_invalidos", () => {
@@ -83,7 +122,7 @@ describe("Início", () => {
       <Inicio
         lista={lista({ invalidos: [{ pasta: "C:/pacotes/quebrado", motivo: "ficha.json inválido" }] })}
         aoAbrirJogo={() => {}}
-        aoEscolherPasta={() => {}}
+        aoTentarDeNovo={() => {}}
       />,
     )
     expect(screen.getByText(/1 pacote com problema/)).toBeInTheDocument()
@@ -95,7 +134,7 @@ describe("Início", () => {
       <Inicio
         lista={lista({ atualizacoes: [{ pacote_id: "jak2-usa-ptbr", versao_gerada: "1.0", versao_nova: "1.1" }] })}
         aoAbrirJogo={() => {}}
-        aoEscolherPasta={() => {}}
+        aoTentarDeNovo={() => {}}
       />,
     )
     expect(screen.getAllByText("Atualização disponível")).toHaveLength(1)
@@ -190,7 +229,31 @@ describe("Jogo, outra pasta", () => {
   })
 })
 
+describe("Jogo, catálogo", () => {
+  it("jogo_offline_sem_patch_nao_traduz", () => {
+    render(<JogoTela jogo={comTraducao({ patch_disponivel: false, tamanho_download: 238940 })} offline aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.getByText("Precisa de internet para baixar a tradução.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Selecionar ISO" })).toBeDisabled()
+  })
+
+  it("jogo_mostra_tamanho_do_download", () => {
+    render(<JogoTela jogo={comTraducao({ patch_disponivel: false, tamanho_download: 238940 })} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.getByText("Baixa 233 KB da internet na hora de traduzir.")).toBeInTheDocument()
+  })
+})
+
 describe("Progresso", () => {
+  it("progresso_mostra_etapa_baixando", () => {
+    render(<ProgressoTela nomeJogo="Jak II" comDownload progresso={{ etapa: "baixando", fracao: 0.5 }} />)
+    expect(screen.getByText("Baixando a tradução").closest("li")).toHaveAttribute("aria-current", "step")
+    expect(screen.getByText("Etapa 2 de 4")).toBeInTheDocument()
+  })
+
+  it("progresso_sem_download_nao_mostra_baixando", () => {
+    render(<ProgressoTela nomeJogo="Jak II" progresso={{ etapa: "aplicando", fracao: 0.5 }} />)
+    expect(screen.queryByText("Baixando a tradução")).not.toBeInTheDocument()
+  })
+
   it("progresso_mostra_etapa_e_porcentagem", () => {
     render(<ProgressoTela nomeJogo="Jak II" progresso={{ etapa: "aplicando", fracao: 0.42 }} />)
     expect(screen.getByText("42%")).toBeInTheDocument()

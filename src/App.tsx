@@ -14,16 +14,23 @@ type Tela =
   | { nome: "inicio" }
   | { nome: "config" }
   | { nome: "jogo"; jogoId: string; aviso?: string; pedido?: PedidoTraducao }
-  | { nome: "progresso"; jogoId: string }
+  | { nome: "progresso"; jogoId: string; comDownload: boolean }
   | { nome: "pronto"; jogoId: string; pacoteId: string; resultado: Resultado }
 
-const VAZIA: ListaJogos = { jogos: [], invalidos: [], atualizacoes: [], pasta_rascunhos: null }
+const VAZIA: ListaJogos = {
+  jogos: [],
+  invalidos: [],
+  atualizacoes: [],
+  pasta_rascunhos: null,
+  catalogo: { offline: false, atualizado_em: null, aviso: null },
+}
 
 export default function App() {
   const [lista, setLista] = useState<ListaJogos | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [tela, setTela] = useState<Tela>({ nome: "inicio" })
   const [progresso, setProgresso] = useState<Progresso>({ etapa: "conferindo", fracao: 0 })
+  const [sincronizando, setSincronizando] = useState(false)
 
   const recarregar = useCallback(async () => {
     try {
@@ -34,9 +41,22 @@ export default function App() {
     }
   }, [])
 
+  // Baixa o catálogo do GitHub; sem internet, o app fica com o que já estava no cache.
+  const sincronizar = useCallback(async () => {
+    setSincronizando(true)
+    try {
+      setLista(await api.sincronizarCatalogo())
+    } catch (e) {
+      setErro(String(e))
+    } finally {
+      setSincronizando(false)
+    }
+  }, [])
+
+  // Mostra o cache na hora e atualiza em seguida.
   useEffect(() => {
-    void recarregar()
-  }, [recarregar])
+    void recarregar().then(sincronizar)
+  }, [recarregar, sincronizar])
 
   async function trocarPasta() {
     const pasta = await api.escolherPasta()
@@ -51,7 +71,8 @@ export default function App() {
 
   async function traduzir(jogoId: string, pedido: PedidoTraducao) {
     setProgresso({ etapa: "conferindo", fracao: 0 })
-    setTela({ nome: "progresso", jogoId })
+    const traducao = lista?.jogos.find((j) => j.id === jogoId)?.traducoes.find((t) => t.id === pedido.pacoteId)
+    setTela({ nome: "progresso", jogoId, comDownload: traducao ? !traducao.patch_disponivel : false })
     const parar = api.aoProgresso(setProgresso)
     try {
       const resultado = await api.traduzir(pedido.pacoteId, pedido.iso, pedido.saida, pedido.sobrescrever)
@@ -100,7 +121,12 @@ export default function App() {
 
       <main className="min-h-0 flex-1 overflow-y-auto">
         {tela.nome === "inicio" && (
-          <Inicio lista={lista} aoAbrirJogo={(id) => setTela({ nome: "jogo", jogoId: id })} aoEscolherPasta={trocarPasta} />
+          <Inicio
+            lista={lista}
+            sincronizando={sincronizando}
+            aoAbrirJogo={(id) => setTela({ nome: "jogo", jogoId: id })}
+            aoTentarDeNovo={() => void sincronizar()}
+          />
         )}
         {tela.nome === "config" && (
           <Configuracoes pasta={lista.pasta_rascunhos} aoTrocarPasta={trocarPasta} aoVoltar={() => setTela({ nome: "inicio" })} />
@@ -110,12 +136,13 @@ export default function App() {
             key={jogo.id}
             jogo={jogo}
             aviso={tela.aviso}
+            offline={lista.catalogo.offline}
             pedidoAnterior={tela.pedido}
             aoVoltar={() => setTela({ nome: "inicio" })}
             aoTraduzir={(pedido) => void traduzir(jogo.id, pedido)}
           />
         )}
-        {tela.nome === "progresso" && jogo && <ProgressoTela nomeJogo={jogo.nome} progresso={progresso} />}
+        {tela.nome === "progresso" && jogo && <ProgressoTela nomeJogo={jogo.nome} progresso={progresso} comDownload={tela.comDownload} />}
         {tela.nome === "pronto" && jogo && (
           <Pronto
             jogo={jogo}

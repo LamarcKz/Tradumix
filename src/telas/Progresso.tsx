@@ -1,13 +1,22 @@
 import * as api from "../api"
 import type { Etapa, Progresso } from "../tipos"
 
-const ETAPAS: { etapa: Etapa; nome: string }[] = [
+const TODAS: { etapa: Etapa; nome: string }[] = [
   { etapa: "conferindo", nome: "Conferindo a ISO" },
+  { etapa: "baixando", nome: "Baixando a tradução" },
   { etapa: "aplicando", nome: "Aplicando a tradução" },
   { etapa: "verificando", nome: "Verificando o hash do RetroAchievements" },
 ]
 
-export function ProgressoTela({ nomeJogo, progresso }: { nomeJogo: string; progresso: Progresso }) {
+interface Props {
+  nomeJogo: string
+  progresso: Progresso
+  /** A tradução ainda não está no PC: aparece a etapa de download. */
+  comDownload?: boolean
+}
+
+export function ProgressoTela({ nomeJogo, progresso, comDownload = false }: Props) {
+  const ETAPAS = TODAS.filter((e) => comDownload || e.etapa !== "baixando")
   const atual = ETAPAS.findIndex((e) => e.etapa === progresso.etapa)
   const pct = Math.round(Math.min(Math.max(progresso.fracao, 0), 1) * 100)
 

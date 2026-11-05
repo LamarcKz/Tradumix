@@ -1,7 +1,7 @@
 // Espelho dos tipos que os comandos do app (src-tauri/src/comandos.rs) devolvem.
 
 export type EstadoTraducao = "rascunho" | "beta" | "publicada"
-export type Etapa = "conferindo" | "aplicando" | "verificando"
+export type Etapa = "conferindo" | "baixando" | "aplicando" | "verificando"
 
 export interface Tradutor {
   nome: string
@@ -22,6 +22,10 @@ export interface Traducao {
   limitacoes: string[]
   data: string
   fundo: string | null
+  origem: "catalogo" | "rascunho"
+  novo: boolean
+  patch_disponivel: boolean
+  tamanho_download: number | null
 }
 
 export interface Jogo {
@@ -48,6 +52,13 @@ export interface ListaJogos {
   invalidos: PacoteInvalido[]
   atualizacoes: Atualizacao[]
   pasta_rascunhos: string | null
+  catalogo: SituacaoCatalogo
+}
+
+export interface SituacaoCatalogo {
+  offline: boolean
+  atualizado_em: string | null
+  aviso: string | null
 }
 
 export interface Conferencia {

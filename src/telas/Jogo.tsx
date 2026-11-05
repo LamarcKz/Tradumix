@@ -14,6 +14,8 @@ export interface PedidoTraducao {
 interface Props {
   jogo: Jogo
   aviso?: string | null
+  /** Sem internet: traduções que ainda não têm o patch no PC não podem ser geradas. */
+  offline?: boolean
   /** O pedido que voltou com erro: a tela reabre com a mesma ISO e a mesma saída. */
   pedidoAnterior?: PedidoTraducao
   aoVoltar: () => void
@@ -26,7 +28,13 @@ function nomeDoArquivo(caminho: string) {
   return caminho.split(/[\\/]/).pop() ?? caminho
 }
 
-export function JogoTela({ jogo, aviso, pedidoAnterior, aoVoltar, aoTraduzir }: Props) {
+/** 238940 → "233 KB"; 5242880 → "5,0 MB". */
+export function tamanhoLegivel(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`
+}
+
+export function JogoTela({ jogo, aviso, offline = false, pedidoAnterior, aoVoltar, aoTraduzir }: Props) {
   const [traducaoId, setTraducaoId] = useState(pedidoAnterior?.pacoteId ?? jogo.traducoes[0]?.id ?? "")
   const [iso, setIso] = useState<string | null>(null)
   const [conferencia, setConferencia] = useState<Conferencia | null>(null)
@@ -34,6 +42,7 @@ export function JogoTela({ jogo, aviso, pedidoAnterior, aoVoltar, aoTraduzir }: 
   const [erro, setErro] = useState<string | null>(null)
   const [conferindo, setConferindo] = useState(false)
   const traducao = jogo.traducoes.find((t) => t.id === traducaoId) ?? jogo.traducoes[0]
+  const semInternet = offline && !traducao.patch_disponivel
 
   // Voltando de um erro: confere de novo a mesma ISO e mantém a saída escolhida.
   useEffect(() => {
@@ -190,6 +199,17 @@ export function JogoTela({ jogo, aviso, pedidoAnterior, aoVoltar, aoTraduzir }: 
               Use a sua ISO original da versão {traducao.regiao}. Ela não é alterada: a traduzida é gravada ao lado.
             </p>
 
+            {semInternet ? (
+              <p role="status" className="mt-4 rounded-md border border-borda p-3 text-sm text-suave">
+                Precisa de internet para baixar a tradução.
+              </p>
+            ) : (
+              !traducao.patch_disponivel &&
+              traducao.tamanho_download !== null && (
+                <p className="mt-3 text-sm text-sutil">Baixa {tamanhoLegivel(traducao.tamanho_download)} da internet na hora de traduzir.</p>
+              )
+            )}
+
             {aviso && (
               <p role="status" className="mt-4 rounded-md bg-erro/10 p-3 text-sm text-erro">
                 {aviso}
@@ -245,7 +265,7 @@ export function JogoTela({ jogo, aviso, pedidoAnterior, aoVoltar, aoTraduzir }: 
             ) : (
               <button
                 onClick={selecionarIso}
-                disabled={conferindo}
+                disabled={conferindo || semInternet}
                 className="mt-5 w-full rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5] disabled:opacity-60"
               >
                 {conferindo ? "Conferindo a ISO…" : conferencia ? "Selecionar outra ISO" : "Selecionar ISO"}

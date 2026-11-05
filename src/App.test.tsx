@@ -8,6 +8,7 @@ import type { ListaJogos } from "./tipos"
 
 vi.mock("./api", () => ({
   listarJogos: vi.fn(),
+  sincronizarCatalogo: vi.fn(),
   escolherPastaRascunhos: vi.fn(),
   conferirIso: vi.fn(),
   traduzir: vi.fn(),
@@ -46,6 +47,10 @@ const lista: ListaJogos = {
           limitacoes: [],
           data: "2026-11-05",
           fundo: null,
+          origem: "catalogo",
+          novo: false,
+          patch_disponivel: true,
+          tamanho_download: null,
         },
       ],
     },
@@ -53,11 +58,13 @@ const lista: ListaJogos = {
   invalidos: [],
   atualizacoes: [],
   pasta_rascunhos: "C:/pacotes",
+  catalogo: { offline: false, atualizado_em: "2026-11-05", aviso: null },
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   falso.listarJogos.mockResolvedValue(lista)
+  falso.sincronizarCatalogo.mockResolvedValue(lista)
   falso.escolherArquivoIso.mockResolvedValue("C:/jogos/jak2.iso")
   falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
 })
@@ -68,6 +75,15 @@ async function ateTraduzir() {
   await userEvent.click(screen.getByRole("button", { name: "Selecionar ISO" }))
   await userEvent.click(await screen.findByRole("button", { name: "Traduzir" }))
 }
+
+it("app_sincroniza_ao_abrir", async () => {
+  const atualizada = { ...lista, jogos: [...lista.jogos, { ...lista.jogos[0], id: "sly", nome: "Sly Cooper" }] }
+  falso.sincronizarCatalogo.mockResolvedValue(atualizada)
+  render(<App />)
+  expect(await screen.findByRole("button", { name: /Abrir Sly Cooper/ })).toBeInTheDocument()
+  expect(falso.listarJogos).toHaveBeenCalled()
+  expect(falso.sincronizarCatalogo).toHaveBeenCalledTimes(1)
+})
 
 it("fluxo_completo_chega_na_tela_pronto", async () => {
   falso.traduzir.mockResolvedValue({ saida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", hash_ra: "x", compativel_ra: true, segundos: 3 })

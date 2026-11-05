@@ -10,6 +10,11 @@ export function listarJogos(): Promise<ListaJogos> {
   return invoke("listar_jogos")
 }
 
+/** Baixa o catálogo do GitHub (ou fica com o do cache, sem internet) e devolve a lista. */
+export function sincronizarCatalogo(): Promise<ListaJogos> {
+  return invoke("sincronizar_catalogo")
+}
+
 export function escolherPastaRascunhos(caminho: string): Promise<ListaJogos> {
   return invoke("escolher_pasta_rascunhos", { caminho })
 }
