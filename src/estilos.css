@@ -1,0 +1,52 @@
+@import "tailwindcss";
+@import "@fontsource-variable/bricolage-grotesque";
+
+/* Índigo do menu do PS2 e o amarelo da bandeira. O verde fica só para "compatível com RetroAchievements". */
+@theme {
+  --color-fundo: #0c1236;
+  --color-superficie: #161d4a;
+  --color-borda: #2a336b;
+  --color-texto: #e8eaf6;
+  --color-suave: #9aa3d0;
+  --color-amarelo: #f4c430;
+  --color-verde: #2bb673;
+  --color-erro: #ff8a7a;
+  --color-caixa: #050505;
+  --font-sans: "Bricolage Grotesque Variable", system-ui, sans-serif;
+}
+
+html,
+body,
+#raiz {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-fundo);
+  color: var(--color-texto);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Títulos largos: o eixo de largura da Bricolage é a voz do app. */
+.titulo {
+  font-variation-settings: "wdth" 100;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  line-height: 1.02;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-amarelo);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

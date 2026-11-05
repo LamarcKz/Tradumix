@@ -7,3 +7,4 @@ src-tauri/binaries/*.exe
 src-tauri/gen/
 .superpowers/
 *.log
+.claude/launch.json

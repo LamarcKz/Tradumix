@@ -1,0 +1,234 @@
+import { useState } from "react"
+
+import * as api from "../api"
+import type { Conferencia, EstadoTraducao, Jogo } from "../tipos"
+import { Caixa } from "./Caixa"
+
+export interface PedidoTraducao {
+  pacoteId: string
+  iso: string
+  saida: string
+  sobrescrever: boolean
+}
+
+interface Props {
+  jogo: Jogo
+  aviso?: string | null
+  aoVoltar: () => void
+  aoTraduzir: (pedido: PedidoTraducao) => void
+}
+
+const NOME_ESTADO: Record<EstadoTraducao, string> = { rascunho: "Rascunho", beta: "Beta", publicada: "Publicada" }
+
+function nomeDoArquivo(caminho: string) {
+  return caminho.split(/[\\/]/).pop() ?? caminho
+}
+
+export function JogoTela({ jogo, aviso, aoVoltar, aoTraduzir }: Props) {
+  const [traducaoId, setTraducaoId] = useState(jogo.traducoes[0]?.id ?? "")
+  const [iso, setIso] = useState<string | null>(null)
+  const [conferencia, setConferencia] = useState<Conferencia | null>(null)
+  const [saida, setSaida] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+  const [conferindo, setConferindo] = useState(false)
+  const traducao = jogo.traducoes.find((t) => t.id === traducaoId) ?? jogo.traducoes[0]
+
+  async function selecionarIso() {
+    const escolhida = await api.escolherArquivoIso()
+    if (!escolhida) return
+    setErro(null)
+    setConferindo(true)
+    try {
+      const c = await api.conferirIso(traducao.id, escolhida)
+      setIso(escolhida)
+      setConferencia(c)
+      setSaida(c.saida_sugerida)
+    } catch (e) {
+      setErro(String(e))
+      setConferencia(null)
+    } finally {
+      setConferindo(false)
+    }
+  }
+
+  async function escolherOutraPasta() {
+    const pasta = await api.escolherPasta()
+    if (!pasta || !conferencia) return
+    setSaida(`${pasta.replace(/[\\/]$/, "")}\\${nomeDoArquivo(conferencia.saida_sugerida)}`)
+    setConferencia({ ...conferencia, ja_existe: false })
+  }
+
+  function traduzir(sobrescrever: boolean) {
+    if (!iso || !saida) return
+    aoTraduzir({ pacoteId: traducao.id, iso, saida, sobrescrever })
+  }
+
+  return (
+    <div className="relative min-h-full">
+      {traducao.fundo && (
+        <div aria-hidden className="absolute inset-x-0 top-0 h-[420px] overflow-hidden">
+          <img src={traducao.fundo} alt="" className="h-full w-full object-cover opacity-45" />
+          <div className="absolute inset-0 bg-gradient-to-b from-fundo/30 via-fundo/70 to-fundo" />
+        </div>
+      )}
+
+      <div className="relative px-10 pb-16 pt-6">
+        <button onClick={aoVoltar} className="text-sm text-suave hover:text-texto">
+          ← Traduções
+        </button>
+
+        <div className="mt-8 grid grid-cols-[auto_1fr_340px] items-start gap-10">
+          <Caixa jogo={jogo} tamanho="grande" />
+
+          <article className="min-w-0 max-w-[64ch]">
+            <h1 className="titulo text-6xl">{jogo.nome}</h1>
+            <p className="mt-3 text-suave">
+              Tradução {traducao.idioma.toUpperCase()} versão {traducao.versao}, para a versão {traducao.regiao} ({traducao.serial})
+              {traducao.estado !== "publicada" && (
+                <span className="ml-2 rounded border border-amarelo/50 px-1.5 py-0.5 text-xs text-amarelo">
+                  {NOME_ESTADO[traducao.estado]}
+                </span>
+              )}
+            </p>
+
+            {jogo.traducoes.length > 1 && (
+              <fieldset className="mt-6">
+                <legend className="mb-2 font-semibold">Traduções disponíveis</legend>
+                <div className="flex flex-col gap-2">
+                  {jogo.traducoes.map((t) => (
+                    <label key={t.id} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="traducao"
+                        checked={t.id === traducao.id}
+                        onChange={() => {
+                          setTraducaoId(t.id)
+                          setConferencia(null)
+                          setIso(null)
+                        }}
+                      />
+                      {t.idioma.toUpperCase()} v{t.versao} ({t.regiao}), por {t.tradutores.map((x) => x.nome).join(", ")}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+
+            {traducao.descricao && <p className="mt-6 text-lg leading-relaxed">{traducao.descricao}</p>}
+
+            {traducao.traduzido.length > 0 && (
+              <section className="mt-8">
+                <h2 className="font-semibold">O que foi traduzido</h2>
+                <ul className="mt-2 flex flex-wrap gap-2">
+                  {traducao.traduzido.map((item) => (
+                    <li key={item} className="rounded-full bg-superficie px-3 py-1 text-sm">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            {traducao.limitacoes.length > 0 && (
+              <section className="mt-8">
+                <h2 className="font-semibold">Limitações</h2>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-suave">
+                  {traducao.limitacoes.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </section>
+            )}
+
+            <section className="mt-8">
+              <h2 className="font-semibold">Créditos</h2>
+              <ul className="mt-2 space-y-1">
+                {traducao.tradutores.map((t) => (
+                  <li key={t.nome}>
+                    {t.link ? (
+                      <a href={t.link} target="_blank" rel="noreferrer" className="underline decoration-amarelo underline-offset-4">
+                        {t.nome}
+                      </a>
+                    ) : (
+                      t.nome
+                    )}
+                  </li>
+                ))}
+              </ul>
+              {traducao.permissao && <p className="mt-2 text-sm text-suave">Permissão: {traducao.permissao}</p>}
+            </section>
+          </article>
+
+          <aside className="rounded-lg border border-borda bg-superficie/90 p-6 backdrop-blur">
+            <h2 className="titulo text-2xl">Gerar a ISO traduzida</h2>
+            <p className="mt-2 text-sm text-suave">
+              Use a sua ISO original da versão {traducao.regiao}. Ela não é alterada: a traduzida é gravada ao lado.
+            </p>
+
+            {aviso && (
+              <p role="status" className="mt-4 rounded-md bg-erro/10 p-3 text-sm text-erro">
+                {aviso}
+              </p>
+            )}
+
+            {conferencia && !conferencia.serve && (
+              <p role="alert" className="mt-4 rounded-md bg-erro/10 p-3 text-sm text-erro">
+                {conferencia.mensagem}
+              </p>
+            )}
+            {erro && (
+              <p role="alert" className="mt-4 rounded-md bg-erro/10 p-3 text-sm text-erro">
+                {erro}
+              </p>
+            )}
+
+            {conferencia?.serve && saida ? (
+              <div className="mt-5 space-y-4">
+                <div>
+                  <p className="text-sm text-suave">ISO original</p>
+                  <p className="break-all text-sm">{iso}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-suave">A traduzida será gravada em</p>
+                  <p className="break-all text-sm">{saida}</p>
+                  <button onClick={escolherOutraPasta} className="mt-1 text-sm text-amarelo hover:underline">
+                    Escolher outra pasta
+                  </button>
+                </div>
+                {conferencia.ja_existe ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-amarelo">Já existe um arquivo com esse nome.</p>
+                    <button
+                      onClick={() => traduzir(true)}
+                      className="w-full rounded-md bg-amarelo px-5 py-3 font-semibold text-fundo hover:brightness-110"
+                    >
+                      Substituir e traduzir
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => traduzir(false)}
+                    className="w-full rounded-md bg-amarelo px-5 py-3 font-semibold text-fundo hover:brightness-110"
+                  >
+                    Traduzir
+                  </button>
+                )}
+                <button onClick={selecionarIso} className="w-full text-sm text-suave hover:text-texto">
+                  Usar outra ISO
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={selecionarIso}
+                disabled={conferindo}
+                className="mt-5 w-full rounded-md bg-amarelo px-5 py-3 font-semibold text-fundo hover:brightness-110 disabled:opacity-60"
+              >
+                {conferindo ? "Conferindo a ISO…" : conferencia ? "Selecionar outra ISO" : "Selecionar ISO"}
+              </button>
+            )}
+          </aside>
+        </div>
+      </div>
+    </div>
+  )
+}
