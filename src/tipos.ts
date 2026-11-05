@@ -26,6 +26,7 @@ export interface Traducao {
   novo: boolean
   patch_disponivel: boolean
   tamanho_download: number | null
+  trailer_youtube: string | null
 }
 
 export interface Jogo {
@@ -53,6 +54,7 @@ export interface ListaJogos {
   atualizacoes: Atualizacao[]
   pasta_rascunhos: string | null
   catalogo: SituacaoCatalogo
+  mostrar_trailers: boolean
 }
 
 export interface SituacaoCatalogo {

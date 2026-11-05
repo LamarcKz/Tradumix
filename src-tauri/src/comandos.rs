@@ -103,7 +103,15 @@ impl Estado {
 
     fn lista(&self) -> ListaJogos {
         let historico = Historico::carregar(&self.arquivo_historico());
-        montar_lista(&self.cache(), self.pasta_rascunhos().as_deref(), &historico, &self.sincronizacao(), &hoje())
+        let mut lista = montar_lista(&self.cache(), self.pasta_rascunhos().as_deref(), &historico, &self.sincronizacao(), &hoje());
+        lista.mostrar_trailers = self.config.lock().unwrap().mostrar_trailers.unwrap_or(true);
+        lista
+    }
+
+    pub fn definir_trailers(&self, mostrar: bool) -> Result<(), String> {
+        let mut config = self.config.lock().unwrap();
+        config.mostrar_trailers = Some(mostrar);
+        config.salvar(&self.dados.join("config.json"))
     }
 }
 
@@ -127,6 +135,8 @@ pub struct TraducaoDto {
     pub patch_disponivel: bool,
     /// Tamanho do patch a baixar, quando ele ainda não está no PC.
     pub tamanho_download: Option<u64>,
+    /// Id do trailer no YouTube.
+    pub trailer_youtube: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -151,6 +161,7 @@ pub struct ListaJogos {
     pub atualizacoes: Vec<Atualizacao>,
     pub pasta_rascunhos: Option<String>,
     pub catalogo: Sincronizacao,
+    pub mostrar_trailers: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -237,6 +248,7 @@ pub fn montar_lista(cache: &Path, rascunhos: Option<&Path>, historico: &Historic
             novo: *origem == "catalogo" && nucleo::e_novo(f, hoje),
             patch_disponivel: disponivel,
             tamanho_download: if disponivel { None } else { f.download.as_ref().map(|d| d.patch.tamanho) },
+            trailer_youtube: f.midia.as_ref().and_then(|m| m.trailer_youtube.clone()),
         };
         match jogos.iter_mut().find(|j| j.id == f.jogo.id) {
             Some(j) => {
@@ -262,6 +274,7 @@ pub fn montar_lista(cache: &Path, rascunhos: Option<&Path>, historico: &Historic
         atualizacoes: historico.atualizacoes(&pacotes),
         pasta_rascunhos: rascunhos.map(|p| p.to_string_lossy().into_owned()),
         catalogo: sinc.clone(),
+        mostrar_trailers: true,
     }
 }
 
@@ -358,6 +371,12 @@ pub async fn traduzir(
         app_fim.exit(0);
     }
     resultado
+}
+
+#[tauri::command]
+pub fn definir_mostrar_trailers(estado: State<'_, Estado>, mostrar: bool) -> Result<ListaJogos, String> {
+    estado.definir_trailers(mostrar)?;
+    Ok(estado.lista())
 }
 
 #[tauri::command]
@@ -483,6 +502,25 @@ mod testes {
         assert!(lista.catalogo.offline);
         assert!(lista.catalogo.aviso.as_deref().unwrap().starts_with("Sem conexão"));
         assert_eq!(lista.jogos.len(), 1);
+    }
+
+    #[test]
+    fn lista_leva_o_trailer_e_a_preferencia_de_video() {
+        let cache = tempfile::tempdir().unwrap();
+        let s = Servidor::novo();
+        let ficha = comum::ficha_catalogo("jak2-usa-ptbr", "1.0", &s.url(""), HASH, 100, b"PATCH", None)
+            .replace(r#""arquivos":"#, r#""midia":{"trailer_youtube":"Pj-ueiUYEbg"},"arquivos":"#);
+        s.definir("/indice.json", Resposta::Ok(comum::indice(&[ficha])));
+        let sinc = sincronizar_interno(cache.path(), &s.url("/indice.json"));
+        let mut lista = montar_lista(cache.path(), None, &Historico::default(), &sinc, HOJE);
+        assert_eq!(lista.jogos[0].traducoes[0].trailer_youtube.as_deref(), Some("Pj-ueiUYEbg"));
+        assert!(lista.mostrar_trailers, "vídeo ligado por padrão");
+
+        let dados = tempfile::tempdir().unwrap();
+        let estado = Estado::novo(dados.path().to_path_buf());
+        estado.definir_trailers(false).unwrap();
+        lista = Estado::novo(dados.path().to_path_buf()).lista();
+        assert!(!lista.mostrar_trailers, "a escolha fica salva");
     }
 
     #[test]

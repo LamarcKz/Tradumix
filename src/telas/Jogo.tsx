@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import * as api from "../api"
 import type { Conferencia, EstadoTraducao, Jogo } from "../tipos"
 import { Caixa } from "./Caixa"
+import { FundoJogo } from "./FundoJogo"
 
 export interface PedidoTraducao {
   pacoteId: string
@@ -16,6 +17,8 @@ interface Props {
   aviso?: string | null
   /** Sem internet: traduções que ainda não têm o patch no PC não podem ser geradas. */
   offline?: boolean
+  /** Toca o trailer do YouTube atrás do título (opção em Configurações). */
+  mostrarTrailers?: boolean
   /** O pedido que voltou com erro: a tela reabre com a mesma ISO e a mesma saída. */
   pedidoAnterior?: PedidoTraducao
   aoVoltar: () => void
@@ -34,7 +37,7 @@ export function tamanhoLegivel(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`
 }
 
-export function JogoTela({ jogo, aviso, offline = false, pedidoAnterior, aoVoltar, aoTraduzir }: Props) {
+export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true, pedidoAnterior, aoVoltar, aoTraduzir }: Props) {
   const [traducaoId, setTraducaoId] = useState(pedidoAnterior?.pacoteId ?? jogo.traducoes[0]?.id ?? "")
   const [iso, setIso] = useState<string | null>(null)
   const [conferencia, setConferencia] = useState<Conferencia | null>(null)
@@ -99,12 +102,7 @@ export function JogoTela({ jogo, aviso, offline = false, pedidoAnterior, aoVolta
 
   return (
     <div className="relative min-h-full">
-      {traducao.fundo && (
-        <div aria-hidden className="absolute inset-x-0 top-0 h-[420px] overflow-hidden">
-          <img src={traducao.fundo} alt="" className="h-full w-full object-cover opacity-45" />
-          <div className="absolute inset-0 bg-gradient-to-b from-fundo/30 via-fundo/70 to-fundo" />
-        </div>
-      )}
+      <FundoJogo jogo={jogo} traducao={traducao} mostrarTrailers={mostrarTrailers} offline={offline} />
 
       <div className="relative px-10 pb-16 pt-6">
         <button onClick={aoVoltar} className="text-sm text-suave hover:text-texto">

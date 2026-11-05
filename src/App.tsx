@@ -23,6 +23,7 @@ const VAZIA: ListaJogos = {
   atualizacoes: [],
   pasta_rascunhos: null,
   catalogo: { offline: false, atualizado_em: null, aviso: null },
+  mostrar_trailers: true,
 }
 
 export default function App() {
@@ -64,6 +65,14 @@ export default function App() {
     try {
       setLista(await api.escolherPastaRascunhos(pasta))
       setErro(null)
+    } catch (e) {
+      setErro(String(e))
+    }
+  }
+
+  async function alterarTrailers(mostrar: boolean) {
+    try {
+      setLista(await api.definirMostrarTrailers(mostrar))
     } catch (e) {
       setErro(String(e))
     }
@@ -134,7 +143,10 @@ export default function App() {
           />
         )}
         {tela.nome === "config" && (
-          <Configuracoes pasta={lista.pasta_rascunhos} aoTrocarPasta={trocarPasta} aoVoltar={() => setTela({ nome: "inicio" })} />
+          <Configuracoes
+            mostrarTrailers={lista.mostrar_trailers}
+            aoAlterarTrailers={(m) => void alterarTrailers(m)}
+            pasta={lista.pasta_rascunhos} aoTrocarPasta={trocarPasta} aoVoltar={() => setTela({ nome: "inicio" })} />
         )}
         {tela.nome === "jogo" && jogo && (
           <JogoTela
@@ -142,6 +154,7 @@ export default function App() {
             jogo={jogo}
             aviso={tela.aviso}
             offline={lista.catalogo.offline}
+            mostrarTrailers={lista.mostrar_trailers}
             pedidoAnterior={tela.pedido}
             aoVoltar={() => setTela({ nome: "inicio" })}
             aoTraduzir={(pedido) => void traduzir(jogo.id, pedido)}

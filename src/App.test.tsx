@@ -10,6 +10,7 @@ vi.mock("./api", () => ({
   listarJogos: vi.fn(),
   sincronizarCatalogo: vi.fn(),
   escolherPastaRascunhos: vi.fn(),
+  definirMostrarTrailers: vi.fn(),
   conferirIso: vi.fn(),
   traduzir: vi.fn(),
   cancelarTraducao: vi.fn(),
@@ -51,6 +52,7 @@ const lista: ListaJogos = {
           novo: false,
           patch_disponivel: true,
           tamanho_download: null,
+          trailer_youtube: null,
         },
       ],
     },
@@ -59,6 +61,7 @@ const lista: ListaJogos = {
   atualizacoes: [],
   pasta_rascunhos: "C:/pacotes",
   catalogo: { offline: false, atualizado_em: "2026-11-05", aviso: null },
+  mostrar_trailers: true,
 }
 
 beforeEach(() => {
@@ -120,6 +123,17 @@ it("topo_tem_os_botoes_da_janela", async () => {
   expect(falso.alternarMaximizarJanela).toHaveBeenCalled()
   expect(falso.fecharJanela).toHaveBeenCalled()
   expect(document.querySelector("header")).toHaveAttribute("data-tauri-drag-region")
+})
+
+it("configuracoes_desliga_o_trailer", async () => {
+  falso.definirMostrarTrailers.mockResolvedValue({ ...lista, mostrar_trailers: false })
+  render(<App />)
+  await userEvent.click(await screen.findByRole("button", { name: "Configurações" }))
+  const opcao = screen.getByRole("checkbox", { name: "Mostrar o trailer atrás do título" })
+  expect(opcao).toBeChecked()
+  await userEvent.click(opcao)
+  expect(falso.definirMostrarTrailers).toHaveBeenCalledWith(false)
+  expect(await screen.findByRole("checkbox", { name: "Mostrar o trailer atrás do título" })).not.toBeChecked()
 })
 
 it("configuracoes_troca_a_pasta_de_rascunhos", async () => {

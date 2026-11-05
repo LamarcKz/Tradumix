@@ -15,6 +15,10 @@ export function sincronizarCatalogo(): Promise<ListaJogos> {
   return invoke("sincronizar_catalogo")
 }
 
+export function definirMostrarTrailers(mostrar: boolean): Promise<ListaJogos> {
+  return invoke("definir_mostrar_trailers", { mostrar })
+}
+
 export function escolherPastaRascunhos(caminho: string): Promise<ListaJogos> {
   return invoke("escolher_pasta_rascunhos", { caminho })
 }

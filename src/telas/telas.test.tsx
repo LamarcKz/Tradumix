@@ -13,6 +13,7 @@ vi.mock("../api", () => ({
   listarJogos: vi.fn(),
   sincronizarCatalogo: vi.fn(),
   escolherPastaRascunhos: vi.fn(),
+  definirMostrarTrailers: vi.fn(),
   conferirIso: vi.fn(),
   traduzir: vi.fn(),
   cancelarTraducao: vi.fn(),
@@ -52,6 +53,7 @@ const jak2: Jogo = {
       novo: false,
       patch_disponivel: true,
       tamanho_download: null,
+      trailer_youtube: null,
     },
   ],
 }
@@ -62,6 +64,7 @@ const lista = (parcial: Partial<ListaJogos> = {}): ListaJogos => ({
   atualizacoes: [],
   pasta_rascunhos: null,
   catalogo: { offline: false, atualizado_em: "2026-11-05", aviso: null },
+  mostrar_trailers: true,
   ...parcial,
 })
 
@@ -226,6 +229,30 @@ describe("Jogo, outra pasta", () => {
     expect(await screen.findByText("D:/outra\\Jak II (USA) PT-BR v1.0.iso")).toBeInTheDocument()
     expect(await screen.findByRole("button", { name: "Substituir e traduzir" })).toBeInTheDocument()
     expect(screen.getByText("C:/jogos/jak2.iso")).toBeInTheDocument()
+  })
+})
+
+describe("Jogo, fundo", () => {
+  const comCapa = { ...comTraducao({ trailer_youtube: "Pj-ueiUYEbg" }), capa: "data:image/jpeg;base64,AAAA" }
+
+  it("jogo_toca_o_trailer_atras_sem_som", () => {
+    render(<JogoTela jogo={comCapa} mostrarTrailers aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    const video = screen.getByTitle("Trailer de Jak II")
+    expect(video.getAttribute("src")).toContain("youtube-nocookie.com/embed/Pj-ueiUYEbg")
+    expect(video.getAttribute("src")).toContain("mute=1")
+    expect(video.getAttribute("src")).toContain("loop=1")
+    expect(document.querySelector("[data-fundo='capa']")).toBeInTheDocument()
+  })
+
+  it("video_desligado_fica_so_a_capa_desfocada", () => {
+    render(<JogoTela jogo={comCapa} mostrarTrailers={false} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.queryByTitle("Trailer de Jak II")).not.toBeInTheDocument()
+    expect(document.querySelector("[data-fundo='capa']")).toBeInTheDocument()
+  })
+
+  it("sem_internet_nao_carrega_o_trailer", () => {
+    render(<JogoTela jogo={comCapa} mostrarTrailers offline aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.queryByTitle("Trailer de Jak II")).not.toBeInTheDocument()
   })
 })
 

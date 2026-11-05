@@ -26,6 +26,7 @@ fn main() {
             comandos::listar_jogos,
             comandos::sincronizar_catalogo,
             comandos::escolher_pasta_rascunhos,
+            comandos::definir_mostrar_trailers,
             comandos::conferir_iso,
             comandos::traduzir,
             comandos::cancelar_traducao,

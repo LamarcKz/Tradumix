@@ -24,12 +24,11 @@ O endereço pode ser trocado em `config.json` (`url_catalogo`), na pasta de dado
       "origem": { "serial": "SCUS-97265", "regiao": "usa", "hash_ra": "f51c94dd47cc2eb385d5733389428121", "tamanho": 4410671104 },
       "resultado": { "hash_ra": "f51c94dd47cc2eb385d5733389428121", "tamanho": 4410671104 },
       "tradutores": [ { "nome": "Nome do tradutor", "link": null } ],
-      "arquivos": { "patch": "patch.xdelta", "capa": "capa.jpg", "fundo": "fundo.jpg" },
+      "arquivos": { "patch": "patch.xdelta" },
       "download": {
-        "patch": { "url": "https://github.com/LamarcKz/Tradumix-catalogo/releases/download/jak2-usa-ptbr-v1.0/jak2-usa-ptbr-v1.0.xdelta", "sha256": "…64 hex…", "tamanho": 238940 },
-        "capa": { "url": "https://raw.githubusercontent.com/LamarcKz/Tradumix-catalogo/main/jogos/jak2/capa.jpg", "sha256": "…", "tamanho": 645574 },
-        "fundo": { "url": "https://raw.githubusercontent.com/LamarcKz/Tradumix-catalogo/main/jogos/jak2/fundo.jpg", "sha256": "…", "tamanho": 776733 }
-      }
+        "patch": { "url": "https://github.com/LamarcKz/Tradumix-catalogo/releases/download/jak2-usa-ptbr-v1.0/jak2-usa-ptbr-v1.0.xdelta", "sha256": "…64 hex…", "tamanho": 238940 }
+      },
+      "midia": { "trailer_youtube": "Pj-ueiUYEbg" }
     }
   ]
 }
@@ -43,6 +42,21 @@ Cada item de `traducoes` é uma ficha no mesmo formato de [ficha.md](ficha.md), 
 - `sha256` tem 64 caracteres hexadecimais e `tamanho` é o tamanho exato em bytes. O app confere
   os dois em todo download e descarta o arquivo que não bater.
 - `arquivos` dá os nomes com que cada arquivo é guardado no cache do app.
+
+## Capa e trailer: só referências
+
+O catálogo não guarda imagens nem vídeos de terceiros.
+
+- **Capa:** sem `capa` própria na ficha, o app busca pelo serial em
+  `https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/<serial>.jpg`
+  (o acervo que o PCSX2 usa) e guarda no cache. Só aceita JPEG ou PNG.
+- **Fundo da página do jogo:** a capa ampliada e desfocada.
+- **Trailer:** `midia.trailer_youtube` é o id do vídeo no YouTube (11 caracteres). O app o mostra no
+  player do YouTube (`youtube-nocookie.com/embed`), sem som e em loop; dá para desligar em
+  Configurações.
+
+Os blocos `download.capa` e `download.fundo` continuam aceitos para imagens próprias (por exemplo,
+arte feita pelo tradutor).
 
 Uma tradução publicada preserva o hash do RetroAchievements: `origem.hash_ra` e
 `resultado.hash_ra` são iguais.

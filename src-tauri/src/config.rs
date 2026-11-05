@@ -13,6 +13,9 @@ pub struct Config {
     /// Endereço do índice do catálogo; sem valor, usa o do GitHub.
     #[serde(default)]
     pub url_catalogo: Option<String>,
+    /// Trailer atrás do título na página do jogo; sem valor = ligado.
+    #[serde(default)]
+    pub mostrar_trailers: Option<bool>,
 }
 
 impl Config {

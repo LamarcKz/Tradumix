@@ -25,7 +25,8 @@ fn pacote_jak2() -> nucleo::Pacote {
 }
 
 /// Serve a pasta do catálogo (`TRADUMIX_CATALOGO`) num servidor local, trocando as URLs do GitHub
-/// pelas dele, e confere que o app sincroniza o Jak II e baixa o patch com o SHA-256 certo.
+/// pelas dele, e confere que o app sincroniza o Jak II (capa pelo serial, link do trailer) e baixa
+/// o patch com o SHA-256 certo.
 #[test]
 #[ignore = "precisa da pasta do catálogo em TRADUMIX_CATALOGO"]
 fn catalogo_local_ponta_a_ponta() {
@@ -40,17 +41,17 @@ fn catalogo_local_ponta_a_ponta() {
             &s.url("/release"),
         );
     s.definir("/indice.json", Resposta::Ok(indice.into_bytes()));
-    for arquivo in ["jogos/jak2/capa.jpg", "jogos/jak2/fundo.jpg"] {
-        s.definir(&format!("/{arquivo}"), Resposta::Ok(std::fs::read(pasta.join(arquivo)).unwrap()));
-    }
+    // A capa vem do acervo pelo serial; aqui ele é simulado pelo servidor local.
+    s.definir("/capas/SCUS-97265.jpg", Resposta::Ok(vec![0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3]));
     s.definir("/release/jak2-usa-ptbr-v1.0.xdelta", Resposta::Ok(std::fs::read(pasta.join("release/jak2-usa-ptbr-v1.0.xdelta")).unwrap()));
 
     let cache = tempfile::tempdir().unwrap();
-    let r = nucleo::sincronizar(&nucleo::RedeUreq::novo(), &s.url("/indice.json"), cache.path(), true, None);
+    let capas = s.url("/capas/{serial}.jpg");
+    let r = nucleo::sincronizar(&nucleo::RedeUreq::novo(), &s.url("/indice.json"), cache.path(), true, Some(&capas));
     assert!(!r.offline && r.aviso.is_none(), "{:?}", r.aviso);
     let pacote = carregar_pacotes(cache.path()).pacotes.into_iter().find(|p| p.ficha.id == "jak2-usa-ptbr").unwrap();
     assert!(pacote.imagem(nucleo::Imagem::Capa).unwrap().is_file());
-    assert!(pacote.imagem(nucleo::Imagem::Fundo).unwrap().is_file());
+    assert_eq!(pacote.ficha.midia.as_ref().unwrap().trailer_youtube.as_deref(), Some("Pj-ueiUYEbg"));
     assert!(!pacote.patch_disponivel());
     nucleo::baixar_patch(&nucleo::RedeUreq::novo(), &pacote, &mut |_| {}, &AtomicBool::new(false)).unwrap();
     assert!(pacote.patch_disponivel());
