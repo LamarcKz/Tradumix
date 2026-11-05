@@ -20,10 +20,17 @@ pub struct RedeUreq {
 }
 
 impl RedeUreq {
+    /// 30 s sem chegar nenhum byte (ou sem resposta do servidor) é erro. Não há limite de tempo
+    /// total: um patch grande numa conexão lenta pode levar o tempo que precisar.
     pub fn novo() -> RedeUreq {
+        RedeUreq::com_tempos(Duration::from_secs(30), Duration::from_secs(30))
+    }
+
+    pub fn com_tempos(por_leitura: Duration, resposta: Duration) -> RedeUreq {
         let config = ureq::Agent::config_builder()
             .timeout_connect(Some(Duration::from_secs(20)))
-            .timeout_recv_body(Some(Duration::from_secs(60)))
+            .timeout_recv_response(Some(resposta))
+            .timeout_per_read(Some(por_leitura))
             .build();
         RedeUreq { agente: config.into() }
     }

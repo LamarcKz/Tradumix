@@ -25,6 +25,9 @@ pub struct Estado {
     sincronizacao: Mutex<Option<Sincronizacao>>,
     cancelar: Arc<AtomicBool>,
     traduzindo: Arc<AtomicBool>,
+    sincronizando: AtomicBool,
+    /// Protege a troca conjunta de `traduzindo` e `sincronizando`.
+    trava: Mutex<()>,
     fechar_ao_terminar: Arc<AtomicBool>,
 }
 
@@ -37,8 +40,34 @@ impl Estado {
             sincronizacao: Mutex::new(None),
             cancelar: Arc::new(AtomicBool::new(false)),
             traduzindo: Arc::new(AtomicBool::new(false)),
+            sincronizando: AtomicBool::new(false),
+            trava: Mutex::new(()),
             fechar_ao_terminar: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// A sincronização apaga e reescreve pastas do cache: não roda em dobro nem durante uma tradução.
+    pub fn comecar_sincronizacao(&self) -> bool {
+        let _t = self.trava.lock().unwrap();
+        if self.traduzindo.load(Ordering::SeqCst) || self.sincronizando.load(Ordering::SeqCst) {
+            return false;
+        }
+        self.sincronizando.store(true, Ordering::SeqCst);
+        true
+    }
+
+    pub fn terminar_sincronizacao(&self) {
+        self.sincronizando.store(false, Ordering::SeqCst);
+    }
+
+    /// Uma tradução por vez, e só com o catálogo parado.
+    pub fn comecar_traducao(&self) -> bool {
+        let _t = self.trava.lock().unwrap();
+        if self.traduzindo.load(Ordering::SeqCst) || self.sincronizando.load(Ordering::SeqCst) {
+            return false;
+        }
+        self.traduzindo.store(true, Ordering::SeqCst);
+        true
     }
 
     /// A janela pediu para fechar. Com uma tradução em andamento, cancela e devolve `true`:
@@ -259,9 +288,13 @@ pub fn listar_jogos(estado: State<'_, Estado>) -> ListaJogos {
 
 #[tauri::command]
 pub async fn sincronizar_catalogo(estado: State<'_, Estado>) -> Result<ListaJogos, String> {
+    if !estado.comecar_sincronizacao() {
+        return Ok(estado.lista());
+    }
     let (cache, url) = (estado.cache(), estado.url_catalogo());
-    let sinc = tauri::async_runtime::spawn_blocking(move || sincronizar_interno(&cache, &url)).await.map_err(|e| e.to_string())?;
-    *estado.sincronizacao.lock().unwrap() = Some(sinc);
+    let sinc = tauri::async_runtime::spawn_blocking(move || sincronizar_interno(&cache, &url)).await;
+    estado.terminar_sincronizacao();
+    *estado.sincronizacao.lock().unwrap() = Some(sinc.map_err(|e| e.to_string())?);
     Ok(estado.lista())
 }
 
@@ -290,8 +323,8 @@ pub async fn traduzir(
     saida: String,
     sobrescrever: bool,
 ) -> Result<Resultado, String> {
-    if estado.traduzindo.swap(true, Ordering::SeqCst) {
-        return Err("Já existe uma tradução em andamento.".into());
+    if !estado.comecar_traducao() {
+        return Err("Espere um instante: já há uma tradução em andamento ou o catálogo está sendo atualizado.".into());
     }
     let traduzindo = estado.traduzindo.clone();
     let fechar_ao_terminar = estado.fechar_ao_terminar.clone();
@@ -467,6 +500,30 @@ mod testes {
         let json: serde_json::Value = serde_json::from_str(texto).unwrap();
         let permissoes: Vec<&str> = json["permissions"].as_array().unwrap().iter().filter_map(|p| p.as_str()).collect();
         assert!(permissoes.contains(&"opener:allow-open-url"), "{permissoes:?}");
+    }
+
+    #[test]
+    fn sincronizacao_nao_roda_em_dobro_nem_durante_traducao() {
+        let dados = tempfile::tempdir().unwrap();
+        let estado = Estado::novo(dados.path().to_path_buf());
+        assert!(estado.comecar_sincronizacao(), "a primeira começa");
+        assert!(!estado.comecar_sincronizacao(), "a segunda espera a primeira acabar");
+        estado.terminar_sincronizacao();
+        estado.traduzindo.store(true, Ordering::SeqCst);
+        assert!(!estado.comecar_sincronizacao(), "durante uma tradução não sincroniza");
+        estado.traduzindo.store(false, Ordering::SeqCst);
+        assert!(estado.comecar_sincronizacao());
+    }
+
+    #[test]
+    fn traducao_nao_comeca_durante_sincronizacao() {
+        let dados = tempfile::tempdir().unwrap();
+        let estado = Estado::novo(dados.path().to_path_buf());
+        assert!(estado.comecar_sincronizacao());
+        assert!(!estado.comecar_traducao(), "espera o catálogo terminar de atualizar");
+        estado.terminar_sincronizacao();
+        assert!(estado.comecar_traducao());
+        assert!(!estado.comecar_traducao(), "uma tradução por vez");
     }
 
     #[test]

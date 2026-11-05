@@ -230,6 +230,16 @@ describe("Jogo, outra pasta", () => {
 })
 
 describe("Jogo, catálogo", () => {
+  it("jogo_marca_o_rascunho_na_lista_de_traducoes", () => {
+    const publicada = { ...jak2.traducoes[0], estado: "publicada" as const }
+    const rascunho = { ...jak2.traducoes[0], id: "rascunho:jak2-usa-ptbr", origem: "rascunho" as const, estado: "publicada" as const }
+    render(<JogoTela jogo={{ ...jak2, traducoes: [publicada, rascunho] }} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    const opcoes = screen.getAllByRole("radio")
+    expect(opcoes).toHaveLength(2)
+    expect(screen.getByRole("radio", { name: /Rascunho/ })).not.toBe(opcoes[0])
+    expect(screen.getByRole("radio", { name: /Rascunho/ })).toBe(opcoes[1])
+  })
+
   it("jogo_offline_sem_patch_nao_traduz", () => {
     render(<JogoTela jogo={comTraducao({ patch_disponivel: false, tamanho_download: 238940 })} offline aoVoltar={() => {}} aoTraduzir={() => {}} />)
     expect(screen.getByText("Precisa de internet para baixar a tradução.")).toBeInTheDocument()

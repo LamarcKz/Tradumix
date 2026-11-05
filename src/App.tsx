@@ -88,6 +88,11 @@ export default function App() {
   if (!lista) return <div className="p-10 text-suave">Carregando…</div>
 
   const jogo = "jogoId" in tela ? lista.jogos.find((j) => j.id === tela.jogoId) : undefined
+  // O jogo aberto saiu do catálogo na última atualização: volta para o início em vez de ficar em branco.
+  if ("jogoId" in tela && !jogo && tela.nome !== "progresso") {
+    setTela({ nome: "inicio" })
+    return null
+  }
   const ocupado = tela.nome === "progresso"
 
   return (

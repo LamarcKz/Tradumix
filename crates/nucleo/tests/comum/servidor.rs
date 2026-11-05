@@ -12,6 +12,10 @@ pub enum Resposta {
     Status(u16),
     /// Anuncia o tamanho todo, manda só a metade e fecha a conexão.
     Cortar(Vec<u8>),
+    /// Manda o corpo em 10 pedaços, com uma pausa de `ms` entre eles.
+    Lento(Vec<u8>, u64),
+    /// Aceita a conexão e nunca responde.
+    Mudo,
 }
 
 #[derive(Clone)]
@@ -69,6 +73,20 @@ impl Servidor {
                 conexao.write_all(&corpo)
             }
             Resposta::Status(codigo) => write!(conexao, "HTTP/1.1 {codigo} Erro\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"),
+            Resposta::Lento(corpo, ms) => {
+                let _ = write!(conexao, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", corpo.len());
+                let pedaco = corpo.len().div_ceil(10).max(1);
+                for parte in corpo.chunks(pedaco) {
+                    let _ = conexao.write_all(parte);
+                    let _ = conexao.flush();
+                    std::thread::sleep(std::time::Duration::from_millis(ms));
+                }
+                Ok(())
+            }
+            Resposta::Mudo => {
+                std::thread::sleep(std::time::Duration::from_secs(30));
+                Ok(())
+            }
             Resposta::Cortar(corpo) => {
                 let _ = write!(conexao, "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", corpo.len());
                 conexao.write_all(&corpo[..corpo.len() / 2])

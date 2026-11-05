@@ -142,6 +142,9 @@ export function JogoTela({ jogo, aviso, offline = false, pedidoAnterior, aoVolta
                         }}
                       />
                       {t.idioma.toUpperCase()} v{t.versao} ({t.regiao}), por {t.tradutores.map((x) => x.nome).join(", ")}
+                      {t.origem === "rascunho" && (
+                        <span className="rounded border border-dashed border-sutil px-1.5 py-0.5 text-xs text-suave">Rascunho</span>
+                      )}
                     </label>
                   ))}
                 </div>

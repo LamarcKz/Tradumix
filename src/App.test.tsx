@@ -85,6 +85,16 @@ it("app_sincroniza_ao_abrir", async () => {
   expect(falso.sincronizarCatalogo).toHaveBeenCalledTimes(1)
 })
 
+it("jogo_que_some_do_catalogo_volta_ao_inicio", async () => {
+  let liberar: (l: ListaJogos) => void = () => {}
+  falso.sincronizarCatalogo.mockReturnValue(new Promise((r) => (liberar = r)))
+  render(<App />)
+  await userEvent.click(await screen.findByRole("button", { name: /Abrir Jak II/ }))
+  expect(screen.getByRole("heading", { name: "Jak II" })).toBeInTheDocument()
+  liberar({ ...lista, jogos: [] })
+  expect(await screen.findByText("Nenhuma tradução disponível ainda.")).toBeInTheDocument()
+})
+
 it("fluxo_completo_chega_na_tela_pronto", async () => {
   falso.traduzir.mockResolvedValue({ saida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", hash_ra: "x", compativel_ra: true, segundos: 3 })
   await ateTraduzir()
