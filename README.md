@@ -69,7 +69,8 @@ pasta de dados dele (`catalogo/`). O patch de cada tradução só é baixado na 
 download é conferido pelo SHA-256 e pelo tamanho. Sem internet, o app mostra o último catálogo baixado
 e deixa traduzir o que já tem o patch no PC.
 
-Para testar com outro catálogo, defina `url_catalogo` no `config.json` da pasta de dados do app.
+Para testar com outro catálogo, defina a preferência `url_catalogo` no banco do app (`tradumix.db`,
+tabela `preferencias`, na pasta de dados).
 
 ## Modo de teste (rascunhos)
 

@@ -13,7 +13,6 @@ import { Pronto } from "./Pronto"
 vi.mock("../api", () => ({
   listarJogos: vi.fn(),
   sincronizarCatalogo: vi.fn(),
-  escolherPastaRascunhos: vi.fn(),
   definirMostrarTrailers: vi.fn(),
   conferirIso: vi.fn(),
   traduzir: vi.fn(),
@@ -96,12 +95,13 @@ describe("Início", () => {
     expect(screen.queryByText(/pasta/i)).not.toBeInTheDocument()
   })
 
-  it("inicio_mostra_selo_novo_e_rascunho", () => {
-    const novo = { ...comTraducao({ novo: true }), id: "jak2" }
-    const rascunho = { ...comTraducao({ origem: "rascunho", id: "rascunho:abc" }), id: "abc", nome: "Abc" }
-    render(<Inicio lista={lista({ jogos: [novo, rascunho] })} aoAbrirJogo={() => {}} aoTentarDeNovo={() => {}} />)
+  it("inicio_mostra_so_o_selo_novo", () => {
+    const novo = { ...comTraducao({ novo: true, estado: "beta" }), id: "jak2" }
+    const outro = { ...comTraducao({ estado: "rascunho" }), id: "abc", nome: "Abc" }
+    render(<Inicio lista={lista({ jogos: [novo, outro] })} aoAbrirJogo={() => {}} aoTentarDeNovo={() => {}} />)
     expect(screen.getAllByText("Novo")).toHaveLength(1)
-    expect(screen.getAllByText("Rascunho")).toHaveLength(1)
+    expect(screen.queryByText("Beta")).not.toBeInTheDocument()
+    expect(screen.queryByText("Rascunho")).not.toBeInTheDocument()
   })
 
   it("inicio_offline_mostra_aviso_com_data", () => {
@@ -146,13 +146,29 @@ describe("Início", () => {
 })
 
 describe("Jogo", () => {
-  it("jogo_mostra_creditos_e_limitacoes", () => {
+  it("jogo_mostra_o_que_foi_e_o_que_nao_foi_traduzido", () => {
     render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={() => {}} />)
     expect(screen.getByRole("heading", { name: "Jak II" })).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "Fulano de Tal" })).toHaveAttribute("href", "https://exemplo.org")
-    expect(screen.getByText("Algumas texturas continuam em inglês.")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "O que foi traduzido" })).toBeInTheDocument()
     expect(screen.getByText("Legendas das cenas")).toBeInTheDocument()
-    expect(screen.getByText(/Rascunho/)).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "O que não foi traduzido" })).toBeInTheDocument()
+    expect(screen.getByText("Algumas texturas continuam em inglês.")).toBeInTheDocument()
+    expect(screen.queryByText("Limitações")).not.toBeInTheDocument()
+    expect(screen.queryByText("Menus, missões e legendas em português.")).not.toBeInTheDocument()
+    expect(screen.queryByText(/Rascunho|Beta/)).not.toBeInTheDocument()
+  })
+
+  it("jogo_creditos_com_nick_e_github", () => {
+    const comGithub = comTraducao({ tradutores: [{ nome: "LamarcKz", link: "https://github.com/LamarcKz" }] })
+    render(<JogoTela jogo={comGithub} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.getByText("LamarcKz")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "github.com/LamarcKz" })).toHaveAttribute("href", "https://github.com/LamarcKz")
+  })
+
+  it("jogo_creditos_com_outro_link", () => {
+    render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.getByText("Fulano de Tal")).toBeInTheDocument()
+    expect(screen.getByRole("link", { name: "exemplo.org" })).toHaveAttribute("href", "https://exemplo.org")
   })
 
   it("iso_errada_mostra_mensagem_e_nao_traduz", async () => {
@@ -254,7 +270,6 @@ describe("Jogo, fundo", () => {
     const video = screen.getByTitle("Trailer de Jak II")
     expect(video.getAttribute("src")).toContain("youtube-nocookie.com/embed/Pj-ueiUYEbg")
     expect(video.getAttribute("src")).toContain("mute=1")
-    expect(video.getAttribute("src")).toContain("loop=1")
     expect(document.querySelector("[data-fundo='capa']")).toBeInTheDocument()
   })
 
@@ -271,16 +286,6 @@ describe("Jogo, fundo", () => {
 })
 
 describe("Jogo, catálogo", () => {
-  it("jogo_marca_o_rascunho_na_lista_de_traducoes", () => {
-    const publicada = { ...jak2.traducoes[0], estado: "publicada" as const }
-    const rascunho = { ...jak2.traducoes[0], id: "rascunho:jak2-usa-ptbr", origem: "rascunho" as const, estado: "publicada" as const }
-    render(<JogoTela jogo={{ ...jak2, traducoes: [publicada, rascunho] }} aoVoltar={() => {}} aoTraduzir={() => {}} />)
-    const opcoes = screen.getAllByRole("radio")
-    expect(opcoes).toHaveLength(2)
-    expect(screen.getByRole("radio", { name: /Rascunho/ })).not.toBe(opcoes[0])
-    expect(screen.getByRole("radio", { name: /Rascunho/ })).toBe(opcoes[1])
-  })
-
   it("jogo_offline_sem_patch_nao_traduz", () => {
     render(<JogoTela jogo={comTraducao({ patch_disponivel: false, tamanho_download: 238940 })} offline aoVoltar={() => {}} aoTraduzir={() => {}} />)
     expect(screen.getByText("Precisa de internet para baixar a tradução.")).toBeInTheDocument()

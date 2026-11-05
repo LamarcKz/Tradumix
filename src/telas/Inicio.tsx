@@ -61,8 +61,6 @@ export function Inicio({ lista, sincronizando = false, aoAbrirJogo, aoTentarDeNo
           {lista.jogos.map((jogo) => {
             const atualizar = jogo.traducoes.some((t) => comAtualizacao.has(t.id))
             const novo = jogo.traducoes.some((t) => t.novo)
-            const rascunho = jogo.traducoes.some((t) => t.origem === "rascunho")
-            const beta = jogo.traducoes.some((t) => t.origem === "catalogo") && jogo.traducoes.every((t) => t.estado !== "publicada")
             const idiomas = [...new Set(jogo.traducoes.map((t) => t.idioma.toUpperCase()))]
             return (
               <li key={jogo.id}>
@@ -78,8 +76,6 @@ export function Inicio({ lista, sincronizando = false, aoAbrirJogo, aoTentarDeNo
                       </span>
                     ))}
                     {novo && <span className="rounded bg-verde/15 px-1.5 py-0.5 font-semibold text-verde">Novo</span>}
-                    {beta && <span className="rounded border border-borda px-1.5 py-0.5 text-suave">Beta</span>}
-                    {rascunho && <span className="rounded border border-dashed border-sutil px-1.5 py-0.5 text-suave">Rascunho</span>}
                     {atualizar && <span className="rounded bg-verde/15 px-1.5 py-0.5 text-verde">Atualização disponível</span>}
                   </p>
                 </button>

@@ -63,17 +63,6 @@ export default function App() {
     void recarregar().then(sincronizar)
   }, [recarregar, sincronizar])
 
-  async function trocarPasta() {
-    const pasta = await api.escolherPasta()
-    if (!pasta) return
-    try {
-      setLista(await api.escolherPastaRascunhos(pasta))
-      setErro(null)
-    } catch (e) {
-      setErro(String(e))
-    }
-  }
-
   async function alterarTrailers(mostrar: boolean) {
     try {
       setLista(await api.definirMostrarTrailers(mostrar))
@@ -125,11 +114,6 @@ export default function App() {
           <MarcaDev />
         </button>
         <div data-tauri-drag-region className="h-full flex-1" />
-        {!ocupado && tela.nome !== "sobre" && (
-          <button onClick={() => setTela({ nome: "sobre" })} className="mr-6 text-sm text-suave hover:text-texto">
-            Sobre
-          </button>
-        )}
         {!ocupado && tela.nome !== "config" && (
           <button onClick={() => setTela({ nome: "config" })} className="mr-6 text-sm text-suave hover:text-texto">
             Configurações
@@ -159,9 +143,11 @@ export default function App() {
           <Configuracoes
             mostrarTrailers={lista.mostrar_trailers}
             aoAlterarTrailers={(m) => void alterarTrailers(m)}
-            pasta={lista.pasta_rascunhos} aoTrocarPasta={trocarPasta} aoVoltar={() => setTela({ nome: "inicio" })} />
+            aoAbrirSobre={() => setTela({ nome: "sobre" })}
+            aoVoltar={() => setTela({ nome: "inicio" })}
+          />
         )}
-        {tela.nome === "sobre" && <Sobre aoVoltar={() => setTela({ nome: "inicio" })} />}
+        {tela.nome === "sobre" && <Sobre aoVoltar={() => setTela({ nome: "config" })} />}
         {tela.nome === "jogo" && jogo && (
           <JogoTela
             key={jogo.id}

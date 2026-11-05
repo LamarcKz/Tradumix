@@ -9,7 +9,6 @@ import type { ListaJogos } from "./tipos"
 vi.mock("./api", () => ({
   listarJogos: vi.fn(),
   sincronizarCatalogo: vi.fn(),
-  escolherPastaRascunhos: vi.fn(),
   definirMostrarTrailers: vi.fn(),
   conferirIso: vi.fn(),
   traduzir: vi.fn(),
@@ -139,19 +138,20 @@ it("configuracoes_desliga_o_trailer", async () => {
   expect(await screen.findByRole("checkbox", { name: "Mostrar o trailer atrás do título" })).not.toBeChecked()
 })
 
-it("configuracoes_troca_a_pasta_de_rascunhos", async () => {
-  falso.escolherPasta.mockResolvedValue("D:/outra")
-  falso.escolherPastaRascunhos.mockResolvedValue({ ...lista, pasta_rascunhos: "D:/outra" })
+it("configuracoes_nao_tem_pasta_de_rascunhos", async () => {
   render(<App />)
   await userEvent.click(await screen.findByRole("button", { name: "Configurações" }))
-  await userEvent.click(screen.getByRole("button", { name: "Trocar pasta" }))
-  expect(falso.escolherPastaRascunhos).toHaveBeenCalledWith("D:/outra")
-  expect(await screen.findByText("D:/outra")).toBeInTheDocument()
+  expect(screen.queryByText(/rascunho/i)).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: /pasta/i })).not.toBeInTheDocument()
 })
 
-it("topo_abre_a_tela_sobre", async () => {
+it("sobre_fica_dentro_das_configuracoes", async () => {
   render(<App />)
-  await userEvent.click(await screen.findByRole("button", { name: "Sobre" }))
-  expect(await screen.findByText("Versão 0.1.0")).toBeInTheDocument()
+  expect(await screen.findByRole("button", { name: "Configurações" })).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Sobre" })).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole("button", { name: "Configurações" }))
+  await userEvent.click(screen.getByRole("button", { name: "Sobre o Tradumix" }))
+  expect(await screen.findByText("Versão 0.1.0")).toBeInTheDocument()
+  await userEvent.click(screen.getByRole("button", { name: "← Configurações" }))
+  expect(await screen.findByRole("heading", { name: "Configurações" })).toBeInTheDocument()
 })

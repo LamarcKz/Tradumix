@@ -19,10 +19,6 @@ export function definirMostrarTrailers(mostrar: boolean): Promise<ListaJogos> {
   return invoke("definir_mostrar_trailers", { mostrar })
 }
 
-export function escolherPastaRascunhos(caminho: string): Promise<ListaJogos> {
-  return invoke("escolher_pasta_rascunhos", { caminho })
-}
-
 export function conferirIso(pacoteId: string, iso: string): Promise<Conferencia> {
   return invoke("conferir_iso", { pacoteId, iso })
 }
