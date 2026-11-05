@@ -44,11 +44,12 @@ export function FundoJogo({ jogo, traducao, mostrarTrailers, offline }: Props) {
           allow="autoplay; encrypted-media"
           referrerPolicy="strict-origin-when-cross-origin"
           tabIndex={-1}
-          className="absolute left-1/2 top-1/2 aspect-video w-[160%] min-w-[1400px] -translate-x-1/2 -translate-y-1/2 border-0 opacity-55"
+          className="absolute left-1/2 top-1/2 aspect-video w-[160%] min-w-[1400px] -translate-x-1/2 -translate-y-1/2 border-0 opacity-80"
         />
       )}
-      <div className="absolute inset-0 bg-gradient-to-b from-fundo/40 via-fundo/75 to-fundo" />
-      <div className="absolute inset-0 bg-gradient-to-r from-fundo/80 via-transparent to-transparent" />
+      {/* Escurece o suficiente para o texto ler bem e some no fundo do app na parte de baixo. */}
+      <div className="absolute inset-0 bg-gradient-to-b from-fundo/20 via-fundo/55 to-fundo" />
+      <div className="absolute inset-0 bg-gradient-to-r from-fundo/90 via-fundo/40 to-fundo/10" />
     </div>
   )
 }

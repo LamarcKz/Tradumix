@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import * as api from "../api"
 import type { Jogo, ListaJogos, Resultado } from "../tipos"
+import { Caixa } from "./Caixa"
 import { Inicio } from "./Inicio"
 import { JogoTela } from "./Jogo"
 import { ProgressoTela } from "./Progresso"
@@ -229,6 +230,19 @@ describe("Jogo, outra pasta", () => {
     expect(await screen.findByText("D:/outra\\Jak II (USA) PT-BR v1.0.iso")).toBeInTheDocument()
     expect(await screen.findByRole("button", { name: "Substituir e traduzir" })).toBeInTheDocument()
     expect(screen.getByText("C:/jogos/jak2.iso")).toBeInTheDocument()
+  })
+})
+
+describe("Caixa", () => {
+  it("capa_do_acervo_nao_repete_a_faixa_do_ps2", () => {
+    render(<Caixa jogo={{ ...jak2, capa: "data:image/jpeg;base64,AAAA" }} />)
+    expect(screen.queryByText("PlayStation 2")).not.toBeInTheDocument()
+  })
+
+  it("sem_capa_desenha_a_faixa_e_o_nome", () => {
+    render(<Caixa jogo={jak2} />)
+    expect(screen.getByText("PlayStation 2")).toBeInTheDocument()
+    expect(screen.getByText("Jak II")).toBeInTheDocument()
   })
 })
 
