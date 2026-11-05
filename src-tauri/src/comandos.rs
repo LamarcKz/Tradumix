@@ -192,7 +192,7 @@ pub fn sincronizacao_inicial(cache: &Path) -> Sincronizacao {
 /// Sincroniza o catálogo. Endereços `http://127.0.0.1` só valem quando configurados de propósito (testes).
 pub fn sincronizar_interno(cache: &Path, url: &str) -> Sincronizacao {
     let local = url.starts_with("http://127.0.0.1");
-    nucleo::sincronizar(&RedeUreq::novo(), url, cache, local)
+    nucleo::sincronizar(&RedeUreq::novo(), url, cache, local, if local { None } else { Some(nucleo::ACERVO_CAPAS_PS2) })
 }
 
 /// Todas as traduções, cada uma com o id que a interface usa e de onde veio.

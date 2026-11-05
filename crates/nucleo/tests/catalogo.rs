@@ -82,3 +82,11 @@ fn indice_real_do_catalogo_e_valido() {
     let i = ler_indice(&std::fs::read_to_string(caminho).unwrap(), false).unwrap();
     assert!(i.traducoes.iter().any(|f| f.id == "jak2-usa-ptbr"));
 }
+
+#[test]
+fn trailer_com_id_invalido_e_recusado() {
+    let com = |id: &str| ficha("a", URL, SHA, true).replace(r#","download":"#, &format!(r#","midia":{{"trailer_youtube":"{id}"}},"download":"#));
+    assert!(ler_indice(&indice(1, &[com("Pj-ueiUYEbg")]), false).is_ok());
+    assert!(ler_indice(&indice(1, &[com("https://youtube.com/watch?v=Pj-ueiUYEbg")]), false).is_err());
+    assert!(ler_indice(&indice(1, &[com("curto")]), false).is_err());
+}

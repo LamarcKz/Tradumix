@@ -20,9 +20,9 @@ pub use historico::{Atualizacao, Entrada, Historico};
 pub use processo::GrupoDeProcessos;
 pub use iso9660::Iso;
 pub use pacote::{
-    ArquivoRemoto, Arquivos, Download, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Jogo, JogoNoCatalogo, Origem, Pacote, PacoteInvalido,
+    ArquivoRemoto, Arquivos, Download, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Jogo, JogoNoCatalogo, Midia, Origem, Pacote, PacoteInvalido,
     ResultadoEsperado, Tradutor, agrupar_por_jogo, carregar_pacotes, comparar_versoes, e_novo, serve_para,
 };
 pub use rede::{Rede, RedeUreq};
-pub use sincronizar::{Sincronizacao, sincronizar};
+pub use sincronizar::{ACERVO_CAPAS_PS2, Sincronizacao, sincronizar};
 pub use ps2::{IdentidadePs2, Regiao, hash_ra, identificar, regiao_do_serial, serial_do_executavel};

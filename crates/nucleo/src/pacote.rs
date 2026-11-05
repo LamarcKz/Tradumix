@@ -79,6 +79,16 @@ pub struct Ficha {
     /// De onde baixar os arquivos, nas fichas do catálogo. Rascunhos locais não têm.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub download: Option<Download>,
+    /// Links para mídia que fica em outros lugares (o catálogo não guarda imagem nem vídeo de terceiros).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub midia: Option<Midia>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Midia {
+    /// Id do vídeo no YouTube (11 caracteres), tocado no player do próprio YouTube.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trailer_youtube: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -215,6 +225,11 @@ pub(crate) fn validar_ficha(ficha: &Ficha) -> Result<(), String> {
     for (campo, hash) in [("origem.hash_ra", &ficha.origem.hash_ra), ("resultado.hash_ra", &ficha.resultado.hash_ra)] {
         if hash.len() != 32 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
             return Err(format!("{campo} deve ter 32 caracteres hexadecimais"));
+        }
+    }
+    if let Some(id) = ficha.midia.as_ref().and_then(|m| m.trailer_youtube.as_ref()) {
+        if id.len() != 11 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+            return Err(format!("trailer_youtube deve ser o id do vídeo (11 caracteres), não {id}"));
         }
     }
     let nomes = [Some(&ficha.arquivos.patch), ficha.arquivos.capa.as_ref(), ficha.arquivos.fundo.as_ref()];

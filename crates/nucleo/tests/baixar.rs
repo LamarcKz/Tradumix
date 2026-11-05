@@ -15,7 +15,7 @@ fn preparar() -> (Servidor, tempfile::TempDir, Pacote) {
     s.definir("/indice.json", Resposta::Ok(indice(&fichas)));
     s.definir("/jak2-a/patch", Resposta::Ok(PATCH.to_vec()));
     let cache = tempfile::tempdir().unwrap();
-    sincronizar(&RedeUreq::novo(), &s.url("/indice.json"), cache.path(), true);
+    sincronizar(&RedeUreq::novo(), &s.url("/indice.json"), cache.path(), true, None);
     let pacote = carregar_pacotes(cache.path()).pacotes.remove(0);
     (s, cache, pacote)
 }

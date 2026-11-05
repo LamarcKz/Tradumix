@@ -46,7 +46,7 @@ fn catalogo_local_ponta_a_ponta() {
     s.definir("/release/jak2-usa-ptbr-v1.0.xdelta", Resposta::Ok(std::fs::read(pasta.join("release/jak2-usa-ptbr-v1.0.xdelta")).unwrap()));
 
     let cache = tempfile::tempdir().unwrap();
-    let r = nucleo::sincronizar(&nucleo::RedeUreq::novo(), &s.url("/indice.json"), cache.path(), true);
+    let r = nucleo::sincronizar(&nucleo::RedeUreq::novo(), &s.url("/indice.json"), cache.path(), true, None);
     assert!(!r.offline && r.aviso.is_none(), "{:?}", r.aviso);
     let pacote = carregar_pacotes(cache.path()).pacotes.into_iter().find(|p| p.ficha.id == "jak2-usa-ptbr").unwrap();
     assert!(pacote.imagem(nucleo::Imagem::Capa).unwrap().is_file());

@@ -20,7 +20,12 @@ pub struct Sincronizacao {
     pub aviso: Option<String>,
 }
 
-pub fn sincronizar(rede: &dyn Rede, url_indice: &str, cache: &Path, permitir_http_local: bool) -> Sincronizacao {
+/// Acervo público de capas de PS2 usado pelo PCSX2, endereçado pelo serial do jogo.
+pub const ACERVO_CAPAS_PS2: &str = "https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/{serial}.jpg";
+
+/// `url_capas`: modelo com `{serial}` para buscar a capa das traduções que não têm capa própria
+/// (normalmente `ACERVO_CAPAS_PS2`); `None` não busca.
+pub fn sincronizar(rede: &dyn Rede, url_indice: &str, cache: &Path, permitir_http_local: bool, url_capas: Option<&str>) -> Sincronizacao {
     let ultima = fs::read_to_string(cache.join("sincronizado.txt")).ok().map(|t| t.trim().to_string());
     let mut texto = Vec::new();
     if rede.baixar(url_indice, &mut texto, LIMITE_INDICE, &mut |_| {}).is_err() {
@@ -44,7 +49,7 @@ pub fn sincronizar(rede: &dyn Rede, url_indice: &str, cache: &Path, permitir_htt
     let _ = fs::create_dir_all(cache);
     let ids: HashSet<&str> = indice.traducoes.iter().map(|f| f.id.as_str()).collect();
     for ficha in &indice.traducoes {
-        gravar_traducao(rede, ficha, &cache.join(&ficha.id));
+        gravar_traducao(rede, ficha, &cache.join(&ficha.id), url_capas);
     }
     remover_saidas(cache, &ids);
     let hoje = chrono::Local::now().format("%Y-%m-%d").to_string();
@@ -53,7 +58,7 @@ pub fn sincronizar(rede: &dyn Rede, url_indice: &str, cache: &Path, permitir_htt
     Sincronizacao { offline: false, atualizado_em: Some(hoje), aviso: None }
 }
 
-fn gravar_traducao(rede: &dyn Rede, ficha: &Ficha, pasta: &Path) {
+fn gravar_traducao(rede: &dyn Rede, ficha: &Ficha, pasta: &Path, url_capas: Option<&str>) {
     if fs::create_dir_all(pasta).is_err() {
         return;
     }
@@ -64,6 +69,16 @@ fn gravar_traducao(rede: &dyn Rede, ficha: &Ficha, pasta: &Path) {
     if sha_antigo != sha_novo {
         let _ = fs::remove_file(pasta.join(&ficha.arquivos.patch));
     }
+    // Sem capa própria: a capa vem do acervo pelo serial e fica no cache como capa.jpg.
+    let mut ficha = ficha.clone();
+    if ficha.arquivos.capa.is_none() {
+        if let Some(modelo) = url_capas {
+            if capa_do_acervo(rede, modelo, &ficha.origem.serial, &pasta.join("capa.jpg")) {
+                ficha.arquivos.capa = Some("capa.jpg".into());
+            }
+        }
+    }
+    let ficha = &ficha;
     if let Ok(texto) = serde_json::to_string_pretty(ficha) {
         let _ = fs::write(pasta.join("ficha.json"), texto);
     }
@@ -80,6 +95,20 @@ fn gravar_traducao(rede: &dyn Rede, ficha: &Ficha, pasta: &Path) {
             let _ = fs::remove_file(&destino);
         }
     }
+}
+
+/// Baixa a capa uma vez só; aceita apenas JPEG ou PNG de verdade (o acervo responde HTML em alguns erros).
+fn capa_do_acervo(rede: &dyn Rede, modelo: &str, serial: &str, destino: &Path) -> bool {
+    if destino.is_file() {
+        return true;
+    }
+    let mut bytes = Vec::new();
+    let url = modelo.replace("{serial}", serial);
+    if rede.baixar(&url, &mut bytes, LIMITE_IMAGEM, &mut |_| {}).is_err() {
+        return false;
+    }
+    let imagem = bytes.starts_with(&[0xFF, 0xD8, 0xFF]) || bytes.starts_with(&[0x89, b'P', b'N', b'G']);
+    imagem && fs::write(destino, &bytes).is_ok()
 }
 
 /// Apaga do cache as traduções que saíram do índice.
