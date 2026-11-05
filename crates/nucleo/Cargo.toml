@@ -8,6 +8,9 @@ description = "Núcleo do Tradumix: leitura de ISO, identidade do jogo, pacotes 
 
 [dependencies]
 thiserror = "2"
+md-5 = "0.10"
+serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 tempfile = "3"
+md-5 = "0.10"

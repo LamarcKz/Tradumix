@@ -9,6 +9,8 @@ pub enum Erro {
     IsoInvalida,
     #[error("arquivo não encontrado na ISO: {0}")]
     ArquivoNaoEncontrado(String),
+    #[error("a ISO não é de um jogo de PS2")]
+    NaoEPs2,
 }
 
 impl Erro {
@@ -19,6 +21,7 @@ impl Erro {
             Erro::ArquivoNaoEncontrado(nome) => {
                 format!("A ISO não tem o arquivo {nome}. Confira se é o jogo certo.")
             }
+            Erro::NaoEPs2 => "Esta ISO não parece ser de um jogo de PlayStation 2.".into(),
         }
     }
 }
