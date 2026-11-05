@@ -46,6 +46,7 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
   const [conferindo, setConferindo] = useState(false)
   const traducao = jogo.traducoes.find((t) => t.id === traducaoId) ?? jogo.traducoes[0]
   const semInternet = offline && !traducao.patch_disponivel
+  const temTrailer = mostrarTrailers && !offline && !!traducao.trailer_youtube
 
   // Voltando de um erro: confere de novo a mesma ISO e mantém a saída escolhida.
   useEffect(() => {
@@ -105,11 +106,15 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
       <FundoJogo jogo={jogo} traducao={traducao} mostrarTrailers={mostrarTrailers} offline={offline} />
 
       <div className="relative px-10 pb-16 pt-6">
-        <button onClick={aoVoltar} className="text-sm text-suave hover:text-texto">
+        <button
+          onClick={aoVoltar}
+          className="rounded-md bg-fundo/60 px-3 py-1.5 text-sm text-suave backdrop-blur hover:text-texto"
+        >
           ← Traduções
         </button>
 
-        <div className="mt-8 grid grid-cols-[auto_1fr_340px] items-start gap-10">
+        {/* Com trailer, o vídeo ocupa o topo e as informações começam na base dele. */}
+        <div className={`grid grid-cols-[auto_1fr_340px] items-start gap-10 ${temTrailer ? "mt-[38vh]" : "mt-8"}`}>
           <Caixa jogo={jogo} tamanho="grande" />
 
           <article className="min-w-0 max-w-[64ch]">
