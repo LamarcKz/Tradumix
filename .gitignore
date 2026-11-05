@@ -1,0 +1,9 @@
+target/
+node_modules/
+dist/
+*.iso
+*.parcial
+src-tauri/binaries/*.exe
+src-tauri/gen/
+.superpowers/
+*.log
