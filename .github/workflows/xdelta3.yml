@@ -1,0 +1,107 @@
+# Compila o xdelta3 que vai dentro do Tradumix, a partir do código oficial (github.com/jmacd/xdelta),
+# com as mesmas opções do workflow de release de lá (liblzma e BLAKE3 estáticos). A única diferença:
+# a biblioteca do C da Microsoft vai dentro do .exe (/MT), porque o executável oficial depende do
+# VCRUNTIME140.dll, que falta nos PCs sem o pacote do Visual C++.
+#
+# Publica o xdelta3.exe, o .sha256 e a licença numa release "xdelta3-v<versão>" deste repositório.
+# Se a release já existe, só compila e testa: o scripts/baixar-xdelta3.mjs confere o SHA-256 fixo
+# da release, então ela nunca é trocada.
+name: xdelta3
+
+on:
+  workflow_dispatch:
+    inputs:
+      versao:
+        description: "Versão do xdelta3 (tag v<versão> do repositório oficial)"
+        required: true
+        default: "3.2.2"
+  push:
+    branches: [desenvolvimento]
+    paths: [.github/workflows/xdelta3.yml]
+
+permissions:
+  contents: write
+
+env:
+  VERSAO: ${{ inputs.versao || '3.2.2' }}
+
+jobs:
+  xdelta3:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Get the official source
+        run: git clone --depth 1 --branch "v$env:VERSAO" https://github.com/jmacd/xdelta.git fonte
+
+      # CMP0091=NEW faz o CMAKE_MSVC_RUNTIME_LIBRARY valer também nas dependências (xz e BLAKE3).
+      - name: Configure
+        working-directory: fonte/xdelta3
+        run: >
+          cmake -B build -A x64
+          -DCMAKE_BUILD_TYPE=Release
+          -DXD3_LZMA_FETCH=ON
+          -DXD3_BUILD_TESTS=OFF
+          -DCMAKE_POLICY_DEFAULT_CMP0091=NEW
+          -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
+
+      - name: Build
+        working-directory: fonte/xdelta3
+        run: cmake --build build --config Release -j
+
+      - name: Built-in self test
+        working-directory: fonte/xdelta3
+        run: ./build/Release/xdelta3.exe test
+
+      # Não pode depender de DLL que não vem com o Windows.
+      - name: No VCRUNTIME dependency
+        working-directory: fonte/xdelta3
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe | Where-Object FullName -like '*Hostx64\x64*' | Select-Object -First 1
+          $deps = & $dumpbin.FullName /dependents build/Release/xdelta3.exe | Out-String
+          Write-Host $deps
+          if ($deps -match 'VCRUNTIME|MSVCP|api-ms-win-crt') { throw "xdelta3.exe ainda depende da biblioteca do C em DLL" }
+
+      # Ida e volta com as opções do Tradumix, e compatível com o executável oficial nos dois sentidos.
+      - name: Round trip with the official build
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $nosso = "fonte/xdelta3/build/Release/xdelta3.exe"
+          Invoke-WebRequest "https://github.com/jmacd/xdelta/releases/download/v$env:VERSAO/xdelta3-$env:VERSAO-windows-x86_64.zip" -OutFile oficial.zip
+          Expand-Archive oficial.zip oficial
+          $oficial = (Get-ChildItem oficial -Recurse -Filter xdelta3.exe | Select-Object -First 1).FullName
+          $rng = [System.Random]::new(42)
+          $a = [byte[]]::new(8MB); $rng.NextBytes($a)
+          $b = [byte[]]$a.Clone(); for ($i = 0; $i -lt $b.Length; $i += 4096) { $b[$i] = 0x41 }
+          [IO.File]::WriteAllBytes("$PWD/a.bin", $a); [IO.File]::WriteAllBytes("$PWD/b.bin", $b)
+          foreach ($par in @(@($nosso, $nosso), @($oficial, $nosso), @($nosso, $oficial))) {
+            & $par[0] -e -9 -S djw -B 1073741824 -f -s a.bin b.bin p.xdelta; if ($LASTEXITCODE) { throw "encode" }
+            & $par[1] -d -f -s a.bin p.xdelta c.bin; if ($LASTEXITCODE) { throw "decode" }
+            if ((Get-FileHash b.bin).Hash -ne (Get-FileHash c.bin).Hash) { throw "resultado diferente" }
+          }
+          Write-Host "Ida e volta ok nos três sentidos"
+
+      - name: Package
+        run: |
+          $nome = "xdelta3-$env:VERSAO-windows-x86_64.exe"
+          New-Item -ItemType Directory saida | Out-Null
+          Copy-Item fonte/xdelta3/build/Release/xdelta3.exe "saida/$nome"
+          Copy-Item fonte/xdelta3/LICENSE saida/xdelta3-LICENSE.txt
+          $sha = (Get-FileHash "saida/$nome" -Algorithm SHA256).Hash.ToLower()
+          "$sha  $nome" | Set-Content -NoNewline -Encoding ascii "saida/$nome.sha256"
+          Write-Host "SHA-256: $sha"
+          "commit do código: $(git -C fonte rev-parse HEAD)" | Write-Host
+
+      - name: Publish the release (only the first time)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "xdelta3-v$env:VERSAO"
+          gh release view $tag --repo "${{ github.repository }}" *> $null
+          if ($LASTEXITCODE -eq 0) { Write-Host "A release $tag já existe: nada foi trocado."; exit 0 }
+          $commit = git -C fonte rev-parse HEAD
+          $notas = "xdelta3 $env:VERSAO compilado do código oficial (https://github.com/jmacd/xdelta, tag v$env:VERSAO, commit $commit) com as opções do workflow de release de lá, mais a biblioteca do C dentro do .exe (/MT). Licença Apache 2.0, de Joshua MacDonald (xdelta3-LICENSE.txt)."
+          gh release create $tag (Get-ChildItem saida).FullName --repo "${{ github.repository }}" --target "${{ github.sha }}" --title "xdelta3 $env:VERSAO" --notes $notas
