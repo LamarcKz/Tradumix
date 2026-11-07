@@ -94,7 +94,7 @@ fn jak2_ponta_a_ponta() {
     let xdelta3 = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../src-tauri/binaries/xdelta3-x86_64-pc-windows-msvc.exe");
     let pedido = Pedido { iso_original: var("TRADUMIX_ISO_JAK2"), saida: saida.clone(), sobrescrever: true, xdelta3 };
     let r = aplicar(&pacote, &pedido, &mut |_, _| {}, &AtomicBool::new(false)).unwrap();
-    assert!(r.compativel_ra);
+    assert_eq!(r.compativel_ra, Some(true));
     let mut md5 = Md5::new();
     let mut arquivo = File::open(&saida).unwrap();
     let mut buf = vec![0u8; 8 << 20];

@@ -21,7 +21,7 @@ fn pacote(raiz: &std::path::Path, id: &str, versao: &str) -> Pacote {
 }
 
 fn resultado() -> Resultado {
-    Resultado { saida: PathBuf::from("saida.iso"), hash_ra: HASH.into(), compativel_ra: true, segundos: 1.0 }
+    Resultado { saida: PathBuf::from("saida.iso"), hash_ra: Some(HASH.into()), compativel_ra: Some(true), segundos: 1.0 }
 }
 
 #[test]

@@ -126,7 +126,8 @@ fn gera_iso_identica_ao_destino() {
     let saida = c.raiz.join("saida.iso");
     let r = aplicar(&c.pacote, &pedido(&c, saida.clone()), &mut |_, _| {}, &AtomicBool::new(false)).unwrap();
     assert_eq!(fs::read(&saida).unwrap(), c.destino);
-    assert!(r.compativel_ra);
+    assert_eq!(r.compativel_ra, Some(true));
+    assert_eq!(r.hash_ra.as_deref(), c.pacote.alvo.hash_ra_esperado());
     assert_eq!(r.saida, saida);
     assert!(parciais(&c.raiz).is_empty());
 }

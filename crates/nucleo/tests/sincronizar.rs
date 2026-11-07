@@ -76,7 +76,7 @@ fn traducao_removida_some_do_cache() {
     let antes = carregar_pacotes(cache.path());
     let mut historico = Historico::default();
     let b = antes.pacotes.iter().find(|p| p.ficha.id == "jak2-b").unwrap();
-    historico.registrar(b, &nucleo::Resultado { saida: "x.iso".into(), hash_ra: HASH_RA.into(), compativel_ra: true, segundos: 1.0 }, "2026-11-05");
+    historico.registrar(b, &nucleo::Resultado { saida: "x.iso".into(), hash_ra: Some(HASH_RA.into()), compativel_ra: Some(true), segundos: 1.0 }, "2026-11-05");
 
     let fichas = vec![ficha_catalogo("jak2-a", "1.0", &s.url(""), HASH_RA, 100, b"PATCH", Some(CAPA))];
     s.definir("/indice.json", Resposta::Ok(indice(&fichas)));

@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Erro, Pacote, Rede, identificar};
+use crate::{Erro, Instalacao, Pacote, Rede};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const MARGEM_ESPACO: u64 = 64 * 1024 * 1024;
@@ -36,8 +36,10 @@ pub struct Pedido {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Resultado {
     pub saida: PathBuf,
-    pub hash_ra: String,
-    pub compativel_ra: bool,
+    /// Hash do RetroAchievements da cópia gerada (`None` em plataforma sem RetroAchievements).
+    pub hash_ra: Option<String>,
+    /// O hash continua o da original (`None` em plataforma sem RetroAchievements).
+    pub compativel_ra: Option<bool>,
     pub segundos: f64,
 }
 
@@ -63,6 +65,20 @@ pub fn aplicar(
 
 /// Como `aplicar`, mas baixa o patch antes (etapa Baixando) quando ele ainda não está na pasta.
 pub fn aplicar_com_rede(
+    pacote: &Pacote,
+    pedido: &Pedido,
+    rede: Option<&dyn Rede>,
+    progresso: &mut dyn FnMut(Etapa, f32),
+    cancelar: &AtomicBool,
+) -> Result<Resultado, Erro> {
+    match &pacote.ficha.instalacao {
+        Instalacao::ImagemXdelta { .. } => instalar_imagem_xdelta(pacote, pedido, rede, progresso, cancelar),
+    }
+}
+
+/// `imagem-xdelta`: confere a original, baixa o patch se precisar, gera a cópia traduzida ao lado
+/// (num `.parcial` renomeado no fim) e verifica o resultado pela plataforma.
+fn instalar_imagem_xdelta(
     pacote: &Pacote,
     pedido: &Pedido,
     rede: Option<&dyn Rede>,
@@ -95,13 +111,13 @@ pub fn aplicar_com_rede(
     let parcial = caminho_parcial(&pedido.saida);
     let resultado = gerar(pacote, pedido, &parcial, esperado, progresso, cancelar).and_then(|()| {
         progresso(Etapa::Verificando, 0.0);
-        let id = identificar(&parcial)?;
+        let hash_ra = pacote.alvo.verificar_resultado(&parcial)?;
         fs::rename(&parcial, &pedido.saida)?;
         progresso(Etapa::Verificando, 1.0);
         Ok(Resultado {
             saida: pedido.saida.clone(),
-            compativel_ra: pacote.alvo.hash_ra_esperado().is_some_and(|h| id.hash_ra.eq_ignore_ascii_case(h)),
-            hash_ra: id.hash_ra,
+            compativel_ra: hash_ra.as_deref().zip(pacote.alvo.hash_ra_esperado()).map(|(a, b)| a.eq_ignore_ascii_case(b)),
+            hash_ra,
             segundos: inicio.elapsed().as_secs_f64(),
         })
     });
