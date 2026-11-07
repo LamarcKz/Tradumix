@@ -5,7 +5,7 @@ use std::sync::atomic::AtomicBool;
 
 use comum::servidor::{Resposta, Servidor};
 use comum::{HASH_RA, ficha_catalogo, indice};
-use nucleo::{Erro, Pacote, RedeUreq, baixar_patch, carregar_pacotes, sincronizar};
+use nucleo::{Capas, Erro, Pacote, RedeUreq, baixar_patch, carregar_pacotes, sincronizar};
 
 const PATCH: &[u8] = b"conteudo do patch xdelta de teste, com alguns bytes a mais para o corte no meio";
 
@@ -15,7 +15,7 @@ fn preparar() -> (Servidor, tempfile::TempDir, Pacote) {
     s.definir("/indice.json", Resposta::Ok(indice(&fichas)));
     s.definir("/jak2-a/patch", Resposta::Ok(PATCH.to_vec()));
     let cache = tempfile::tempdir().unwrap();
-    sincronizar(&RedeUreq::novo(), &s.url("/indice.json"), cache.path(), true, None);
+    sincronizar(&RedeUreq::novo(), &s.url("/indice.json"), cache.path(), true, Capas::Nao);
     let pacote = carregar_pacotes(cache.path()).pacotes.remove(0);
     (s, cache, pacote)
 }

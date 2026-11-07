@@ -10,25 +10,39 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Ficha do catálogo com download apontando para `base` (`/<id>/patch`, `/<id>/capa`).
-pub fn ficha_catalogo(id: &str, versao: &str, base: &str, hash_ra: &str, tamanho_iso: u64, patch: &[u8], capa: Option<&[u8]>) -> String {
-    let capa_dl = capa
-        .map(|c| format!(r#","capa":{{"url":"{base}/{id}/capa","sha256":"{}","tamanho":{}}}"#, sha256_hex(c), c.len()))
-        .unwrap_or_default();
+/// Ficha formato 2 de um jogo de PS2 (Jak II, USA). `extra` entra antes do `}` final
+/// (ex.: `,"imagens":{…}` ou `,"midia":{…}`).
+#[allow(clippy::too_many_arguments)]
+pub fn ficha_ps2(
+    id: &str,
+    versao: &str,
+    hash_ra: &str,
+    tamanho_origem: u64,
+    tamanho_resultado: u64,
+    patch_url: &str,
+    patch_sha: &str,
+    patch_tamanho: u64,
+    extra: &str,
+) -> String {
     format!(
-        r#"{{"formato":1,"id":"{id}","jogo":{{"id":"jak2","nome":"Jak II","console":"ps2"}},"versao":"{versao}","estado":"beta",
-        "idioma":"pt-BR","data":"2026-11-05",
-        "origem":{{"serial":"SCUS-97265","regiao":"usa","hash_ra":"{hash_ra}","tamanho":{tamanho_iso}}},
-        "resultado":{{"hash_ra":"{hash_ra}","tamanho":{tamanho_iso}}},"tradutores":[{{"nome":"Fulano"}}],
-        "arquivos":{{"patch":"patch.xdelta","capa":"capa.jpg"}},
-        "download":{{"patch":{{"url":"{base}/{id}/patch","sha256":"{}","tamanho":{}}}{capa_dl}}}}}"#,
-        sha256_hex(patch),
-        patch.len()
+        r#"{{"formato":2,"id":"{id}","jogo":{{"id":"jak2","nome":"Jak II"}},"plataforma":"ps2",
+        "instalacao":{{"tipo":"imagem-xdelta","patch":{{"nome":"patch.xdelta","url":"{patch_url}","sha256":"{patch_sha}","tamanho":{patch_tamanho}}}}},
+        "versao":"{versao}","estado":"beta","idioma":"pt-BR","data":"2026-11-05",
+        "origem":{{"serial":"SCUS-97265","regiao":"usa","hash_ra":"{hash_ra}","tamanho":{tamanho_origem}}},
+        "resultado":{{"hash_ra":"{hash_ra}","tamanho":{tamanho_resultado}}},"tradutores":[{{"nome":"Fulano"}}]{extra}}}"#
     )
 }
 
+/// Ficha do catálogo com os downloads apontando para `base` (`/<id>/patch`, `/<id>/capa`).
+pub fn ficha_catalogo(id: &str, versao: &str, base: &str, hash_ra: &str, tamanho_iso: u64, patch: &[u8], capa: Option<&[u8]>) -> String {
+    let imagens = capa
+        .map(|c| format!(r#","imagens":{{"capa":{{"nome":"capa.jpg","url":"{base}/{id}/capa","sha256":"{}","tamanho":{}}}}}"#, sha256_hex(c), c.len()))
+        .unwrap_or_default();
+    ficha_ps2(id, versao, hash_ra, tamanho_iso, tamanho_iso, &format!("{base}/{id}/patch"), &sha256_hex(patch), patch.len() as u64, &imagens)
+}
+
 pub fn indice(fichas: &[String]) -> Vec<u8> {
-    format!(r#"{{"formato":1,"atualizado":"2026-11-05","traducoes":[{}]}}"#, fichas.join(",")).into_bytes()
+    format!(r#"{{"formato":2,"atualizado":"2026-11-05","traducoes":[{}]}}"#, fichas.join(",")).into_bytes()
 }
 
 const SETOR: usize = 2048;

@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Erro, Ficha, IdentidadePs2, Pacote, Rede, identificar};
+use crate::{Erro, Pacote, Rede, identificar};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const MARGEM_ESPACO: u64 = 64 * 1024 * 1024;
@@ -41,51 +41,14 @@ pub struct Resultado {
     pub segundos: f64,
 }
 
-/// Mesma pasta da original: `<jogo> (<Região>) <IDIOMA> v<versão>.iso`.
-pub fn nome_saida(ficha: &Ficha, iso_original: &Path) -> PathBuf {
-    let pasta = iso_original.parent().unwrap_or(Path::new(""));
-    let nome = format!(
-        "{} ({}) {} v{}",
-        ficha.jogo.nome,
-        ficha.origem.regiao.nome(),
-        ficha.idioma.to_uppercase(),
-        ficha.versao
-    );
-    pasta.join(format!("{}.iso", nome_de_arquivo_seguro(&nome)))
+/// Nome sugerido para a cópia traduzida, na mesma pasta da original (a plataforma decide).
+pub fn nome_saida(pacote: &Pacote, original: &Path) -> PathBuf {
+    pacote.alvo.nome_saida(&pacote.ficha, original)
 }
 
-/// Tira o que o Windows não aceita num nome de arquivo (e qualquer separador de pasta):
-/// `:` vira ` -` ("Jogo: Subtítulo" → "Jogo - Subtítulo"), o resto some.
-fn nome_de_arquivo_seguro(nome: &str) -> String {
-    let mut limpo = String::with_capacity(nome.len());
-    for c in nome.chars() {
-        match c {
-            ':' => limpo.push_str(" -"),
-            '<' | '>' | '"' | '/' | '\\' | '|' | '?' | '*' => limpo.push(' '),
-            c if c.is_control() => {}
-            c => limpo.push(c),
-        }
-    }
-    let junto = limpo.split_whitespace().collect::<Vec<_>>().join(" ");
-    let aparado = junto.trim_matches(|c: char| c == '.' || c == ' ').to_string();
-    if aparado.is_empty() { "Jogo".into() } else { aparado }
-}
-
-/// Confere se a ISO é a que a tradução espera, sem ler a imagem inteira.
-pub fn conferir(pacote: &Pacote, iso_original: &Path) -> Result<IdentidadePs2, Erro> {
-    let id = identificar(iso_original)?;
-    let origem = &pacote.ficha.origem;
-    let esperado_nome = format!("{} ({})", pacote.ficha.jogo.nome, origem.regiao.nome());
-    if !id.serial.eq_ignore_ascii_case(&origem.serial) {
-        return Err(Erro::JogoErrado { esperado_nome, esperado_serial: origem.serial.clone(), encontrado_serial: id.serial });
-    }
-    if !id.hash_ra.eq_ignore_ascii_case(&origem.hash_ra) {
-        return Err(Erro::VersaoDiferente { esperado_nome, serial: origem.serial.clone() });
-    }
-    if id.tamanho != origem.tamanho {
-        return Err(Erro::TamanhoDiferente { esperado: origem.tamanho, encontrado: id.tamanho });
-    }
-    Ok(id)
+/// Confere se o arquivo escolhido é a cópia que a tradução espera, sem lê-lo inteiro.
+pub fn conferir(pacote: &Pacote, original: &Path) -> Result<(), Erro> {
+    pacote.alvo.conferir(&pacote.ficha, original)
 }
 
 /// Aplica sem internet: o patch precisa já estar na pasta do pacote.
@@ -115,7 +78,7 @@ pub fn aplicar_com_rede(
         return Err(Erro::SaidaJaExiste(pedido.saida.clone()));
     }
     conferir(pacote, &pedido.iso_original)?;
-    let esperado = pacote.ficha.resultado.tamanho;
+    let esperado = pacote.alvo.tamanho_resultado();
     let pasta_saida = pedido.saida.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let livre = espaco_livre(pasta_saida)?;
     if livre < esperado + MARGEM_ESPACO {
@@ -137,7 +100,7 @@ pub fn aplicar_com_rede(
         progresso(Etapa::Verificando, 1.0);
         Ok(Resultado {
             saida: pedido.saida.clone(),
-            compativel_ra: id.hash_ra.eq_ignore_ascii_case(&pacote.ficha.origem.hash_ra),
+            compativel_ra: pacote.alvo.hash_ra_esperado().is_some_and(|h| id.hash_ra.eq_ignore_ascii_case(h)),
             hash_ra: id.hash_ra,
             segundos: inicio.elapsed().as_secs_f64(),
         })

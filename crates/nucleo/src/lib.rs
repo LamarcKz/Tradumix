@@ -7,6 +7,7 @@ mod erro;
 mod historico;
 mod iso9660;
 mod pacote;
+mod plataformas;
 mod processo;
 mod ps2;
 mod rede;
@@ -20,9 +21,10 @@ pub use historico::{Atualizacao, Entrada, Historico};
 pub use processo::GrupoDeProcessos;
 pub use iso9660::Iso;
 pub use pacote::{
-    ArquivoRemoto, Arquivos, Download, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Jogo, JogoNoCatalogo, Midia, Origem, Pacote, PacoteInvalido,
-    ResultadoEsperado, Tradutor, agrupar_por_jogo, carregar_pacotes, comparar_versoes, e_novo, serve_para,
+    ArquivoBaixavel, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Imagens, Instalacao, Jogo, Midia, NOME_CAPA_ACERVO, Pacote, PacoteInvalido,
+    Tradutor, carregar_pacotes, comparar_versoes, e_novo,
 };
+pub use plataformas::{Alvo, InfoPlataforma, OrigemPs2, PLATAFORMAS, Plataforma, ResultadoPs2, ler_alvo};
 pub use rede::{Rede, RedeUreq};
-pub use sincronizar::{ACERVO_CAPAS_PS2, Sincronizacao, sincronizar};
+pub use sincronizar::{Capas, Sincronizacao, sincronizar};
 pub use ps2::{IdentidadePs2, Regiao, hash_ra, identificar, regiao_do_serial, serial_do_executavel};

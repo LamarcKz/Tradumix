@@ -1,3 +1,5 @@
+mod comum;
+
 use std::fs;
 use std::path::PathBuf;
 
@@ -11,12 +13,7 @@ fn pacote(raiz: &std::path::Path, id: &str, versao: &str) -> Pacote {
     fs::write(p.join("patch.xdelta"), b"VCD").unwrap();
     fs::write(
         p.join("ficha.json"),
-        format!(
-            r#"{{"formato":1,"id":"{id}","jogo":{{"id":"jak2","nome":"Jak II","console":"ps2"}},"versao":"{versao}",
-            "estado":"publicada","idioma":"pt-BR","data":"2026-11-05",
-            "origem":{{"serial":"SCUS-97265","regiao":"usa","hash_ra":"{HASH}","tamanho":1}},
-            "resultado":{{"hash_ra":"{HASH}","tamanho":1}},"tradutores":[],"arquivos":{{"patch":"patch.xdelta"}}}}"#
-        ),
+        comum::ficha_ps2(id, versao, HASH, 1, 1, "https://x/p", "3ce44ebfecc30fc110c57f4fdf6ec0cd8c483fb3403d60ef3a671afb5f26e8de", 3, ""),
     )
     .unwrap();
     let carga = carregar_pacotes(raiz);
