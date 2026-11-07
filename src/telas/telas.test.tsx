@@ -3,7 +3,8 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import * as api from "../api"
-import type { Jogo, ListaJogos, Resultado } from "../tipos"
+import { infoPc, infoPs2, jogoPs2, jogoPs2ePc, listaDe, plataforma, traducaoJak2 } from "../testes/dados"
+import type { Jogo, ListaJogos, Resultado, Traducao } from "../tipos"
 import { Caixa } from "./Caixa"
 import { Inicio } from "./Inicio"
 import { JogoTela } from "./Jogo"
@@ -19,7 +20,7 @@ vi.mock("../api", () => ({
   cancelarTraducao: vi.fn(),
   abrirPasta: vi.fn(),
   aoProgresso: vi.fn(() => () => {}),
-  escolherArquivoIso: vi.fn(),
+  escolherArquivoDoJogo: vi.fn(),
   escolherPasta: vi.fn(),
   arquivoExiste: vi.fn(),
   minimizarJanela: vi.fn(),
@@ -29,46 +30,13 @@ vi.mock("../api", () => ({
 
 const falso = vi.mocked(api)
 
-const jak2: Jogo = {
-  id: "jak2",
-  nome: "Jak II",
-  console: "ps2",
-  capa: null,
-  traducoes: [
-    {
-      id: "jak2-usa-ptbr",
-      versao: "1.0",
-      estado: "rascunho",
-      idioma: "pt-BR",
-      regiao: "USA",
-      serial: "SCUS-97265",
-      tradutores: [{ nome: "Fulano de Tal", link: "https://exemplo.org" }],
-      permissao: null,
-      descricao: "Menus, missões e legendas em português.",
-      traduzido: ["Menus", "Legendas das cenas"],
-      limitacoes: ["Algumas texturas continuam em inglês."],
-      data: "2026-11-05",
-      fundo: null,
-      origem: "catalogo",
-      novo: false,
-      patch_disponivel: true,
-      tamanho_download: null,
-      trailer_youtube: null,
-    },
-  ],
-}
+const jak2: Jogo = jogoPs2()
+const traducao = jak2.plataformas[0].traducoes[0]
 
-const lista = (parcial: Partial<ListaJogos> = {}): ListaJogos => ({
-  jogos: [jak2, { ...jak2, id: "abc", nome: "Abc", traducoes: [{ ...jak2.traducoes[0], id: "abc-1" }] }],
-  invalidos: [],
-  atualizacoes: [],
-  pasta_rascunhos: null,
-  catalogo: { offline: false, atualizado_em: "2026-11-05", aviso: null },
-  mostrar_trailers: true,
-  ...parcial,
-})
+const lista = (parcial: Partial<ListaJogos> = {}): ListaJogos =>
+  listaDe([jak2, jogoPs2({ id: "abc-1" }, { id: "abc", nome: "Abc" })], parcial)
 
-const comTraducao = (extra: Partial<Jogo["traducoes"][number]>): Jogo => ({ ...jak2, traducoes: [{ ...jak2.traducoes[0], ...extra }] })
+const comTraducao = (extra: Partial<Traducao>): Jogo => jogoPs2(extra)
 
 beforeEach(() => vi.clearAllMocks())
 
@@ -121,16 +89,41 @@ describe("Início", () => {
     expect(screen.getByText("Atualizando o catálogo…")).toBeInTheDocument()
   })
 
-  it("inicio_mostra_pacotes_invalidos", () => {
-    render(
-      <Inicio
-        lista={lista({ invalidos: [{ pasta: "C:/pacotes/quebrado", motivo: "ficha.json inválido" }] })}
-        aoAbrirJogo={() => {}}
-        aoTentarDeNovo={() => {}}
-      />,
-    )
-    expect(screen.getByText(/1 pacote com problema/)).toBeInTheDocument()
-    expect(screen.getByText(/ficha.json inválido/)).toBeInTheDocument()
+  it("inicio_mostra_a_plataforma_no_card", () => {
+    render(<Inicio lista={listaDe([jak2])} aoAbrirJogo={() => {}} aoTentarDeNovo={() => {}} />)
+    expect(screen.getByText("PS2")).toBeInTheDocument()
+  })
+
+  it("inicio_sem_filtro_com_uma_plataforma", () => {
+    render(<Inicio lista={lista()} aoAbrirJogo={() => {}} aoTentarDeNovo={() => {}} />)
+    expect(screen.queryByRole("button", { name: "Todas" })).not.toBeInTheDocument()
+  })
+
+  it("inicio_filtra_por_plataforma", async () => {
+    const abrir = vi.fn()
+    const a = jogoPs2({ id: "a-1" }, { id: "a", nome: "Abc" })
+    const b = { ...jogoPs2ePc(), id: "b", nome: "Bcd" }
+    const c: Jogo = { id: "c", nome: "Cde", plataformas: [plataforma(infoPc, [{ ...traducaoJak2, id: "c-1" }])] }
+    render(<Inicio lista={listaDe([a, b, c])} aoAbrirJogo={abrir} aoTentarDeNovo={() => {}} />)
+    expect(screen.getByText("PS2 · PC")).toBeInTheDocument()
+    expect(screen.getAllByRole("button", { name: /Abrir/ })).toHaveLength(3)
+    await userEvent.click(screen.getByRole("button", { name: "PC" }))
+    const nomes = screen.getAllByRole("button", { name: /Abrir/ }).map((b) => b.getAttribute("aria-label"))
+    expect(nomes).toEqual(["Abrir Bcd", "Abrir Cde"])
+    await userEvent.click(screen.getByRole("button", { name: "Abrir Bcd" }))
+    expect(abrir).toHaveBeenCalledWith("b", "pc")
+    await userEvent.click(screen.getByRole("button", { name: "Todas" }))
+    expect(screen.getAllByRole("button", { name: /Abrir/ })).toHaveLength(3)
+  })
+
+  it("inicio_filtro_usa_a_capa_da_plataforma", async () => {
+    const b = jogoPs2ePc()
+    b.plataformas[0].capa = "data:image/png;base64,PS2"
+    b.plataformas[1].capa = "data:image/png;base64,PC"
+    render(<Inicio lista={listaDe([b])} aoAbrirJogo={() => {}} aoTentarDeNovo={() => {}} />)
+    expect(document.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,PS2")
+    await userEvent.click(screen.getByRole("button", { name: "PC" }))
+    expect(document.querySelector("img")).toHaveAttribute("src", "data:image/png;base64,PC")
   })
 
   it("inicio_mostra_atualizacao_disponivel", () => {
@@ -173,7 +166,7 @@ describe("Jogo", () => {
 
   it("iso_errada_mostra_mensagem_e_nao_traduz", async () => {
     const traduzir = vi.fn()
-    falso.escolherArquivoIso.mockResolvedValue("C:/jogos/outro.iso")
+    falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/outro.iso")
     falso.conferirIso.mockResolvedValue({
       serve: false,
       mensagem: "Esta tradução precisa da Jak II (USA), serial SCUS-97265. A ISO escolhida é SLES-12345.",
@@ -189,7 +182,7 @@ describe("Jogo", () => {
 
   it("iso_certa_mostra_saida_e_traduz", async () => {
     const traduzir = vi.fn()
-    falso.escolherArquivoIso.mockResolvedValue("C:/jogos/jak2.iso")
+    falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2.iso")
     falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
     render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={traduzir} />)
     await userEvent.click(screen.getByRole("button", { name: "Selecionar ISO" }))
@@ -197,6 +190,7 @@ describe("Jogo", () => {
     await userEvent.click(screen.getByRole("button", { name: "Traduzir" }))
     expect(traduzir).toHaveBeenCalledWith({
       pacoteId: "jak2-usa-ptbr",
+      plataformaId: "ps2",
       iso: "C:/jogos/jak2.iso",
       saida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso",
       sobrescrever: false,
@@ -205,7 +199,7 @@ describe("Jogo", () => {
 
   it("saida_existente_pede_confirmacao", async () => {
     const traduzir = vi.fn()
-    falso.escolherArquivoIso.mockResolvedValue("C:/jogos/jak2.iso")
+    falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2.iso")
     falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: true })
     render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={traduzir} />)
     await userEvent.click(screen.getByRole("button", { name: "Selecionar ISO" }))
@@ -216,10 +210,53 @@ describe("Jogo", () => {
   })
 })
 
+describe("Jogo, plataformas", () => {
+  it("jogo_com_uma_plataforma_nao_mostra_abas", () => {
+    render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument()
+    expect(screen.getByText("Tradução PT-BR versão 1.0, para a versão USA (SCUS-97265)")).toBeInTheDocument()
+  })
+
+  it("jogo_com_duas_plataformas_mostra_abas_e_troca_as_traducoes", async () => {
+    render(<JogoTela jogo={jogoPs2ePc()} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.getByRole("tab", { name: "PlayStation 2" })).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByRole("button", { name: "Selecionar ISO" })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole("tab", { name: "PC" }))
+    expect(screen.getByRole("tab", { name: "PC" })).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByText("Tradução PT-BR versão 2.0, para a versão Steam")).toBeInTheDocument()
+    expect(screen.getByText("Escolha a pasta do jogo.")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Selecionar pasta do jogo" })).toBeInTheDocument()
+  })
+
+  it("abre_na_aba_da_plataforma_do_filtro", () => {
+    render(<JogoTela jogo={jogoPs2ePc()} plataformaInicial="pc" aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.getByRole("tab", { name: "PC" })).toHaveAttribute("aria-selected", "true")
+    expect(screen.getByText("Tradução PT-BR versão 2.0, para a versão Steam")).toBeInTheDocument()
+  })
+
+  it("selecionar_arquivo_usa_o_filtro_da_plataforma", async () => {
+    falso.escolherArquivoDoJogo.mockResolvedValue(null)
+    render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar ISO" }))
+    expect(falso.escolherArquivoDoJogo).toHaveBeenCalledWith(infoPs2)
+  })
+
+  it("traduzir_na_aba_pc_manda_a_plataforma", async () => {
+    const traduzir = vi.fn()
+    falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2")
+    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/saida", ja_existe: false })
+    render(<JogoTela jogo={jogoPs2ePc()} plataformaInicial="pc" aoVoltar={() => {}} aoTraduzir={traduzir} />)
+    await userEvent.click(screen.getByRole("button", { name: "Selecionar pasta do jogo" }))
+    await userEvent.click(await screen.findByRole("button", { name: "Traduzir" }))
+    expect(falso.conferirIso).toHaveBeenCalledWith("jak2-pc-ptbr", "C:/jogos/jak2")
+    expect(traduzir).toHaveBeenCalledWith(expect.objectContaining({ pacoteId: "jak2-pc-ptbr", plataformaId: "pc" }))
+  })
+})
+
 describe("Jogo, outra pasta", () => {
   it("escolher_outra_pasta_confere_se_o_arquivo_existe", async () => {
     const traduzir = vi.fn()
-    falso.escolherArquivoIso.mockResolvedValue("C:/jogos/jak2.iso")
+    falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2.iso")
     falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
     falso.escolherPasta.mockResolvedValue("D:/outra")
     falso.arquivoExiste.mockResolvedValue(true)
@@ -238,7 +275,7 @@ describe("Jogo, outra pasta", () => {
       <JogoTela
         jogo={jak2}
         aviso="Já existe um arquivo em D:/outra."
-        pedidoAnterior={{ pacoteId: "jak2-usa-ptbr", iso: "C:/jogos/jak2.iso", saida: "D:/outra\\Jak II (USA) PT-BR v1.0.iso", sobrescrever: false }}
+        pedidoAnterior={{ pacoteId: "jak2-usa-ptbr", plataformaId: "ps2", iso: "C:/jogos/jak2.iso", saida: "D:/outra\\Jak II (USA) PT-BR v1.0.iso", sobrescrever: false }}
         aoVoltar={() => {}}
         aoTraduzir={() => {}}
       />,
@@ -251,19 +288,24 @@ describe("Jogo, outra pasta", () => {
 
 describe("Caixa", () => {
   it("capa_do_acervo_nao_repete_a_faixa_do_ps2", () => {
-    render(<Caixa jogo={{ ...jak2, capa: "data:image/jpeg;base64,AAAA" }} />)
+    render(<Caixa nome="Jak II" capa="data:image/jpeg;base64,AAAA" plataforma={infoPs2} />)
     expect(screen.queryByText("PlayStation 2")).not.toBeInTheDocument()
   })
 
   it("sem_capa_desenha_a_faixa_e_o_nome", () => {
-    render(<Caixa jogo={jak2} />)
+    render(<Caixa nome="Jak II" capa={null} plataforma={infoPs2} />)
     expect(screen.getByText("PlayStation 2")).toBeInTheDocument()
     expect(screen.getByText("Jak II")).toBeInTheDocument()
+  })
+
+  it("caixa_sem_capa_mostra_o_nome_da_plataforma", () => {
+    render(<Caixa nome="Jak II" capa={null} plataforma={{ ...infoPs2, nome: "PlayStation" }} />)
+    expect(screen.getByText("PlayStation")).toBeInTheDocument()
   })
 })
 
 describe("Jogo, fundo", () => {
-  const comCapa = { ...comTraducao({ trailer_youtube: "Pj-ueiUYEbg" }), capa: "data:image/jpeg;base64,AAAA" }
+  const comCapa = jogoPs2({ trailer_youtube: "Pj-ueiUYEbg" }, {}, "data:image/jpeg;base64,AAAA")
 
   it("jogo_toca_o_trailer_atras_sem_som", () => {
     render(<JogoTela jogo={comCapa} mostrarTrailers aoVoltar={() => {}} aoTraduzir={() => {}} />)
@@ -300,40 +342,56 @@ describe("Jogo, catálogo", () => {
 
 describe("Progresso", () => {
   it("progresso_mostra_etapa_baixando", () => {
-    render(<ProgressoTela nomeJogo="Jak II" comDownload progresso={{ etapa: "baixando", fracao: 0.5 }} />)
+    render(<ProgressoTela nomeJogo="Jak II" plataforma={infoPs2} comDownload progresso={{ etapa: "baixando", fracao: 0.5 }} />)
     expect(screen.getByText("Baixando a tradução").closest("li")).toHaveAttribute("aria-current", "step")
     expect(screen.getByText("Etapa 2 de 4")).toBeInTheDocument()
   })
 
   it("progresso_sem_download_nao_mostra_baixando", () => {
-    render(<ProgressoTela nomeJogo="Jak II" progresso={{ etapa: "aplicando", fracao: 0.5 }} />)
+    render(<ProgressoTela nomeJogo="Jak II" plataforma={infoPs2} progresso={{ etapa: "aplicando", fracao: 0.5 }} />)
     expect(screen.queryByText("Baixando a tradução")).not.toBeInTheDocument()
   })
 
   it("progresso_mostra_etapa_e_porcentagem", () => {
-    render(<ProgressoTela nomeJogo="Jak II" progresso={{ etapa: "aplicando", fracao: 0.42 }} />)
+    render(<ProgressoTela nomeJogo="Jak II" plataforma={infoPs2} progresso={{ etapa: "aplicando", fracao: 0.42 }} />)
     expect(screen.getByText("42%")).toBeInTheDocument()
     expect(screen.getByText("Aplicando a tradução").closest("li")).toHaveAttribute("aria-current", "step")
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "42")
   })
 
   it("cancelar_chama_api", async () => {
-    render(<ProgressoTela nomeJogo="Jak II" progresso={{ etapa: "aplicando", fracao: 0.1 }} />)
+    render(<ProgressoTela nomeJogo="Jak II" plataforma={infoPs2} progresso={{ etapa: "aplicando", fracao: 0.1 }} />)
     await userEvent.click(screen.getByRole("button", { name: "Cancelar" }))
     expect(falso.cancelarTraducao).toHaveBeenCalled()
   })
 })
 
+describe("Progresso, plataforma", () => {
+  it("progresso_fala_do_arquivo_e_do_hash_no_ps2", () => {
+    render(<ProgressoTela nomeJogo="Jak II" plataforma={infoPs2} progresso={{ etapa: "conferindo", fracao: 0 }} />)
+    expect(screen.getByText("Conferindo a ISO")).toBeInTheDocument()
+    expect(screen.getByText("Verificando o hash do RetroAchievements")).toBeInTheDocument()
+  })
+
+  it("progresso_sem_ra_nao_fala_de_hash", () => {
+    render(<ProgressoTela nomeJogo="Jak II" plataforma={infoPc} progresso={{ etapa: "conferindo", fracao: 0 }} />)
+    expect(screen.getByText("Conferindo a pasta do jogo")).toBeInTheDocument()
+    expect(screen.queryByText(/RetroAchievements/)).not.toBeInTheDocument()
+    expect(screen.getByText("Verificando o resultado")).toBeInTheDocument()
+  })
+})
+
 describe("Pronto", () => {
-  const resultado = (compativel: boolean): Resultado => ({
+  const resultado = (compativel: boolean | null): Resultado => ({
     saida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso",
-    hash_ra: "f51c94dd47cc2eb385d5733389428121",
+    hash_ra: compativel === null ? null : "f51c94dd47cc2eb385d5733389428121",
     compativel_ra: compativel,
     segundos: 12.3,
   })
 
   it("pronto_mostra_compatibilidade_ra", async () => {
-    render(<Pronto jogo={jak2} traducao={jak2.traducoes[0]} resultado={resultado(true)} aoVoltar={() => {}} />)
+    render(<Pronto nomeJogo="Jak II" plataforma={jak2.plataformas[0]} traducao={traducao} resultado={resultado(true)} aoVoltar={() => {}} />)
+    expect(screen.getByRole("heading", { name: "ISO traduzida pronta" })).toBeInTheDocument()
     expect(screen.getByText("Compatível com RetroAchievements")).toBeInTheDocument()
     expect(screen.getByText("Fulano de Tal")).toBeInTheDocument()
     await userEvent.click(screen.getByRole("button", { name: "Abrir pasta" }))
@@ -341,7 +399,13 @@ describe("Pronto", () => {
   })
 
   it("pronto_avisa_quando_o_hash_mudou", () => {
-    render(<Pronto jogo={jak2} traducao={jak2.traducoes[0]} resultado={resultado(false)} aoVoltar={() => {}} />)
+    render(<Pronto nomeJogo="Jak II" plataforma={jak2.plataformas[0]} traducao={traducao} resultado={resultado(false)} aoVoltar={() => {}} />)
     expect(screen.getByText(/as conquistas podem não funcionar/)).toBeInTheDocument()
+  })
+
+  it("pronto_sem_ra_nao_mostra_bloco", () => {
+    render(<Pronto nomeJogo="Jak II" plataforma={plataforma(infoPc, [traducao])} traducao={traducao} resultado={resultado(null)} aoVoltar={() => {}} />)
+    expect(screen.getByRole("heading", { name: "pasta do jogo traduzida pronta" })).toBeInTheDocument()
+    expect(screen.queryByText(/RetroAchievements/)).not.toBeInTheDocument()
   })
 })

@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { open } from "@tauri-apps/plugin-dialog"
 
-import type { Conferencia, ListaJogos, Progresso, Resultado, VersaoDoApp, VersaoNova } from "./tipos"
+import type { Conferencia, InfoPlataforma, ListaJogos, Progresso, Resultado, VersaoDoApp, VersaoNova } from "./tipos"
 
 export function listarJogos(): Promise<ListaJogos> {
   return invoke("listar_jogos")
@@ -81,8 +81,10 @@ export function aoProgresso(cb: (p: Progresso) => void): () => void {
   }
 }
 
-export async function escolherArquivoIso(): Promise<string | null> {
-  const escolha = await open({ multiple: false, directory: false, filters: [{ name: "ISO de PS2", extensions: ["iso"] }] })
+/** Abre o seletor de arquivo com o filtro da plataforma (no PS2: "ISO de PS2", `.iso`). */
+export async function escolherArquivoDoJogo(info: InfoPlataforma): Promise<string | null> {
+  const filtro = { name: `${info.arquivo} de ${info.sigla}`, extensions: info.extensoes }
+  const escolha = await open({ multiple: false, directory: false, filters: [filtro] })
   return typeof escolha === "string" ? escolha : null
 }
 

@@ -8,13 +8,30 @@ export interface Tradutor {
   link: string | null
 }
 
+/** O que a interface sabe de uma plataforma (vem do núcleo). */
+export interface InfoPlataforma {
+  id: string
+  /** Nome para mostrar ("PlayStation 2"). */
+  nome: string
+  /** Nome curto, no card e no filtro ("PS2"). */
+  sigla: string
+  /** Como se chama o arquivo do jogo que a pessoa escolhe ("ISO"). */
+  arquivo: string
+  /** Extensões aceitas no seletor de arquivo. */
+  extensoes: string[]
+  /** A plataforma tem RetroAchievements. */
+  tem_ra: boolean
+}
+
 export interface Traducao {
   id: string
   versao: string
   estado: EstadoTraducao
   idioma: string
-  regiao: string
-  serial: string
+  /** Para qual versão do jogo é a tradução ("versão USA (SCUS-97265)"). */
+  detalhes: string
+  /** O que a pessoa precisa escolher para traduzir. */
+  instrucao: string
   tradutores: Tradutor[]
   permissao: string | null
   descricao: string
@@ -22,24 +39,24 @@ export interface Traducao {
   limitacoes: string[]
   data: string
   fundo: string | null
-  origem: "catalogo" | "rascunho"
   novo: boolean
   patch_disponivel: boolean
   tamanho_download: number | null
   trailer_youtube: string | null
 }
 
-export interface Jogo {
-  id: string
-  nome: string
-  console: string
+/** As traduções de um jogo numa plataforma. */
+export interface PlataformaDoJogo {
+  info: InfoPlataforma
   capa: string | null
   traducoes: Traducao[]
 }
 
-export interface PacoteInvalido {
-  pasta: string
-  motivo: string
+/** Um card: o jogo com as plataformas em que há tradução. */
+export interface Jogo {
+  id: string
+  nome: string
+  plataformas: PlataformaDoJogo[]
 }
 
 export interface Atualizacao {
@@ -50,9 +67,7 @@ export interface Atualizacao {
 
 export interface ListaJogos {
   jogos: Jogo[]
-  invalidos: PacoteInvalido[]
   atualizacoes: Atualizacao[]
-  pasta_rascunhos: string | null
   catalogo: SituacaoCatalogo
   mostrar_trailers: boolean
 }
@@ -72,8 +87,9 @@ export interface Conferencia {
 
 export interface Resultado {
   saida: string
-  hash_ra: string
-  compativel_ra: boolean
+  /** `null` em plataforma sem RetroAchievements. */
+  hash_ra: string | null
+  compativel_ra: boolean | null
   segundos: number
 }
 

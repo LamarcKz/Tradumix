@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from "react"
 
-import type { Jogo, Traducao } from "../tipos"
+import type { Traducao } from "../tipos"
 
 interface Props {
-  jogo: Jogo
+  /** Nome do jogo, no título do player. */
+  nome: string
+  /** Capa da plataforma escolhida. */
+  capa: string | null
   traducao: Traducao
   mostrarTrailers: boolean
   offline: boolean
@@ -23,9 +26,9 @@ const ORIGEM_DO_PLAYER = "https://www.youtube-nocookie.com"
  * depois de um tempo tocando e, quando termina, esconde, volta ao começo e toca de novo. Assim não
  * usa a lista de reprodução do YouTube (que traz os botões de anterior e próximo).
  */
-export function FundoJogo({ jogo, traducao, mostrarTrailers, offline }: Props) {
+export function FundoJogo({ nome, capa, traducao, mostrarTrailers, offline }: Props) {
   const trailer = mostrarTrailers && !offline ? traducao.trailer_youtube : null
-  const imagem = traducao.fundo ?? jogo.capa
+  const imagem = traducao.fundo ?? capa
   const player = useRef<HTMLIFrameElement>(null)
   const [visivel, setVisivel] = useState(false)
 
@@ -101,7 +104,7 @@ export function FundoJogo({ jogo, traducao, mostrarTrailers, offline }: Props) {
       {trailer && (
         <iframe
           ref={player}
-          title={`Trailer de ${jogo.nome}`}
+          title={`Trailer de ${nome}`}
           src={`${ORIGEM_DO_PLAYER}/embed/${trailer}?${parametros}`}
           allow="autoplay; encrypted-media"
           referrerPolicy="strict-origin-when-cross-origin"

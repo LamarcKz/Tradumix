@@ -7,6 +7,7 @@ import { FundoJogo } from "./FundoJogo"
 
 export interface PedidoTraducao {
   pacoteId: string
+  plataformaId: string
   iso: string
   saida: string
   sobrescrever: boolean
@@ -14,6 +15,8 @@ export interface PedidoTraducao {
 
 interface Props {
   jogo: Jogo
+  /** Plataforma que já vem escolhida (a do filtro da tela inicial). */
+  plataformaInicial?: string
   aviso?: string | null
   /** Sem internet: traduções que ainda não têm o patch no PC não podem ser geradas. */
   offline?: boolean
@@ -40,14 +43,17 @@ export function tamanhoLegivel(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`
 }
 
-export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true, pedidoAnterior, aoVoltar, aoTraduzir }: Props) {
-  const [traducaoId, setTraducaoId] = useState(pedidoAnterior?.pacoteId ?? jogo.traducoes[0]?.id ?? "")
+export function JogoTela({ jogo, plataformaInicial, aviso, offline = false, mostrarTrailers = true, pedidoAnterior, aoVoltar, aoTraduzir }: Props) {
+  const [plataformaId, setPlataformaId] = useState(pedidoAnterior?.plataformaId ?? plataformaInicial ?? jogo.plataformas[0]?.info.id ?? "")
+  const plataforma = jogo.plataformas.find((p) => p.info.id === plataformaId) ?? jogo.plataformas[0]
+  const arquivo = plataforma.info.arquivo
+  const [traducaoId, setTraducaoId] = useState(pedidoAnterior?.pacoteId ?? plataforma.traducoes[0]?.id ?? "")
   const [iso, setIso] = useState<string | null>(null)
   const [conferencia, setConferencia] = useState<Conferencia | null>(null)
   const [saida, setSaida] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [conferindo, setConferindo] = useState(false)
-  const traducao = jogo.traducoes.find((t) => t.id === traducaoId) ?? jogo.traducoes[0]
+  const traducao = plataforma.traducoes.find((t) => t.id === traducaoId) ?? plataforma.traducoes[0]
   const semInternet = offline && !traducao.patch_disponivel
   const temTrailer = mostrarTrailers && !offline && !!traducao.trailer_youtube
 
@@ -72,8 +78,20 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
     }
   }, [pedidoAnterior])
 
+  /** Outra plataforma: outra lista de traduções e outro arquivo; o que foi escolhido antes não serve. */
+  function trocarPlataforma(id: string) {
+    const nova = jogo.plataformas.find((p) => p.info.id === id)
+    if (!nova) return
+    setPlataformaId(id)
+    setTraducaoId(nova.traducoes[0]?.id ?? "")
+    setIso(null)
+    setConferencia(null)
+    setSaida(null)
+    setErro(null)
+  }
+
   async function selecionarIso() {
-    const escolhida = await api.escolherArquivoIso()
+    const escolhida = await api.escolherArquivoDoJogo(plataforma.info)
     if (!escolhida) return
     setErro(null)
     setConferindo(true)
@@ -101,12 +119,12 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
 
   function traduzir(sobrescrever: boolean) {
     if (!iso || !saida) return
-    aoTraduzir({ pacoteId: traducao.id, iso, saida, sobrescrever })
+    aoTraduzir({ pacoteId: traducao.id, plataformaId: plataforma.info.id, iso, saida, sobrescrever })
   }
 
   return (
     <div className="relative min-h-full">
-      <FundoJogo jogo={jogo} traducao={traducao} mostrarTrailers={mostrarTrailers} offline={offline} />
+      <FundoJogo nome={jogo.nome} capa={plataforma.capa} traducao={traducao} mostrarTrailers={mostrarTrailers} offline={offline} />
 
       <div className="relative px-10 pb-16 pt-6">
         <button
@@ -118,19 +136,39 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
 
         {/* Com trailer, o vídeo ocupa o topo e as informações começam na base dele. */}
         <div className={`grid grid-cols-[auto_1fr_340px] items-start gap-10 ${temTrailer ? "mt-[38vh]" : "mt-8"}`}>
-          <Caixa jogo={jogo} tamanho="grande" />
+          <Caixa nome={jogo.nome} capa={plataforma.capa} plataforma={plataforma.info} tamanho="grande" />
 
           <article className="min-w-0 max-w-[64ch]">
+            {jogo.plataformas.length > 1 && (
+              <div role="tablist" aria-label="Plataforma" className="mb-5 flex flex-wrap gap-2">
+                {jogo.plataformas.map((p) => {
+                  const escolhida = p.info.id === plataforma.info.id
+                  return (
+                    <button
+                      key={p.info.id}
+                      role="tab"
+                      aria-selected={escolhida}
+                      onClick={() => trocarPlataforma(p.info.id)}
+                      className={`rounded-md px-3 py-1.5 text-sm backdrop-blur ${
+                        escolhida ? "bg-destaque font-semibold text-fundo" : "bg-fundo/60 text-suave hover:text-texto"
+                      }`}
+                    >
+                      {p.info.nome}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             <h1 className="titulo text-6xl">{jogo.nome}</h1>
             <p className="mt-3 text-suave">
-              Tradução {traducao.idioma.toUpperCase()} versão {traducao.versao}, para a versão {traducao.regiao} ({traducao.serial})
+              Tradução {traducao.idioma.toUpperCase()} versão {traducao.versao}, para a {traducao.detalhes}
             </p>
 
-            {jogo.traducoes.length > 1 && (
+            {plataforma.traducoes.length > 1 && (
               <fieldset className="mt-6">
                 <legend className="mb-2 font-semibold">Traduções disponíveis</legend>
                 <div className="flex flex-col gap-2">
-                  {jogo.traducoes.map((t) => (
+                  {plataforma.traducoes.map((t) => (
                     <label key={t.id} className="flex items-center gap-2">
                       <input
                         type="radio"
@@ -142,7 +180,7 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
                           setIso(null)
                         }}
                       />
-                      {t.idioma.toUpperCase()} v{t.versao} ({t.regiao}), por {t.tradutores.map((x) => x.nome).join(", ")}
+                      {t.idioma.toUpperCase()} v{t.versao} ({t.detalhes}), por {t.tradutores.map((x) => x.nome).join(", ")}
                     </label>
                   ))}
                 </div>
@@ -192,10 +230,8 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
           </article>
 
           <aside className="rounded-lg border border-borda bg-superficie/90 p-6 backdrop-blur">
-            <h2 className="titulo text-2xl">Gerar a ISO traduzida</h2>
-            <p className="mt-2 text-sm text-suave">
-              Use a sua ISO original da versão {traducao.regiao}. Ela não é alterada: a traduzida é gravada ao lado.
-            </p>
+            <h2 className="titulo text-2xl">Gerar a {arquivo} traduzida</h2>
+            <p className="mt-2 text-sm text-suave">{traducao.instrucao}</p>
 
             {semInternet ? (
               <p role="status" className="mt-4 rounded-md border border-borda p-3 text-sm text-suave">
@@ -228,7 +264,7 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
             {conferencia?.serve && saida ? (
               <div className="mt-5 space-y-4">
                 <div>
-                  <p className="text-sm text-suave">ISO original</p>
+                  <p className="text-sm text-suave">{arquivo} original</p>
                   <p className="break-all text-sm">{iso}</p>
                 </div>
                 <div>
@@ -257,7 +293,7 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
                   </button>
                 )}
                 <button onClick={selecionarIso} className="w-full text-sm text-suave hover:text-texto">
-                  Usar outra ISO
+                  Usar outra {arquivo}
                 </button>
               </div>
             ) : (
@@ -266,7 +302,7 @@ export function JogoTela({ jogo, aviso, offline = false, mostrarTrailers = true,
                 disabled={conferindo || semInternet}
                 className="mt-5 w-full rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5] disabled:opacity-60"
               >
-                {conferindo ? "Conferindo a ISO…" : conferencia ? "Selecionar outra ISO" : "Selecionar ISO"}
+                {conferindo ? `Conferindo a ${arquivo}…` : conferencia ? `Selecionar outra ${arquivo}` : `Selecionar ${arquivo}`}
               </button>
             )}
           </aside>

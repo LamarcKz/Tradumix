@@ -1,28 +1,29 @@
 import * as api from "../api"
-import type { Jogo, Resultado, Traducao } from "../tipos"
+import type { PlataformaDoJogo, Resultado, Traducao } from "../tipos"
 import { Caixa } from "./Caixa"
 
 interface Props {
-  jogo: Jogo
+  nomeJogo: string
+  plataforma: PlataformaDoJogo
   traducao: Traducao
   resultado: Resultado
   aoVoltar: () => void
 }
 
-export function Pronto({ jogo, traducao, resultado, aoVoltar }: Props) {
+export function Pronto({ nomeJogo, plataforma, traducao, resultado, aoVoltar }: Props) {
   const segundos = Math.max(1, Math.round(resultado.segundos))
   return (
     <section className="mx-auto grid max-w-4xl grid-cols-[auto_1fr] items-start gap-12 px-10 pt-20">
-      <Caixa jogo={jogo} tamanho="grande" />
+      <Caixa nome={nomeJogo} capa={plataforma.capa} plataforma={plataforma.info} tamanho="grande" />
       <div className="min-w-0">
-        <h1 className="titulo text-6xl">ISO traduzida pronta</h1>
+        <h1 className="titulo text-6xl">{plataforma.info.arquivo} traduzida pronta</h1>
         <p className="mt-3 text-suave">
-          {jogo.nome} em {traducao.idioma.toUpperCase()}, versão {traducao.versao}, gerada em {segundos} s.
+          {nomeJogo} em {traducao.idioma.toUpperCase()}, versão {traducao.versao}, gerada em {segundos} s.
         </p>
 
         <p className="mt-6 break-all rounded-md bg-superficie px-4 py-3 text-sm">{resultado.saida}</p>
 
-        {resultado.compativel_ra ? (
+        {resultado.compativel_ra === null ? null : resultado.compativel_ra ? (
           <p className="mt-4 flex items-center gap-2 font-semibold text-verde">
             <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-verde" />
             Compatível com RetroAchievements

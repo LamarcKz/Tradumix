@@ -25,7 +25,8 @@ export function Sobre({ aoVoltar }: { aoVoltar: () => void }) {
         </p>
       )}
       <p className="mt-6 leading-relaxed text-suave">
-        O Tradumix aplica traduções de jogos de PS2 na sua própria ISO, no seu PC, sem mudar o hash do RetroAchievements.
+        O Tradumix aplica traduções de jogos na sua própria cópia, no seu PC. Nos jogos com RetroAchievements, a tradução não
+        muda o hash, e as conquistas continuam funcionando.
         Cada tradução tem os créditos de quem a fez na página do jogo.
       </p>
 
