@@ -37,11 +37,7 @@ pub struct ResultadoPs2 {
 pub(crate) fn ler(ficha: &Ficha) -> Result<Alvo, String> {
     let origem: OrigemPs2 = serde_json::from_value(ficha.origem.clone()).map_err(|e| format!("origem inválida: {e}"))?;
     let resultado: ResultadoPs2 = serde_json::from_value(ficha.resultado.clone()).map_err(|e| format!("resultado inválido: {e}"))?;
-    for (campo, hash) in [("origem.hash_ra", &origem.hash_ra), ("resultado.hash_ra", &resultado.hash_ra)] {
-        if hash.len() != 32 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(format!("{campo} deve ter 32 caracteres hexadecimais"));
-        }
-    }
+    super::conferir_hashes(&origem.hash_ra, &resultado.hash_ra)?;
     if origem.serial.trim().is_empty() {
         return Err("o campo origem.serial está vazio".into());
     }

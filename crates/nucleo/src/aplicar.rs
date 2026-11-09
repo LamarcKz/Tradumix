@@ -86,19 +86,29 @@ fn instalar_imagem_xdelta(
     cancelar: &AtomicBool,
 ) -> Result<Resultado, Erro> {
     let inicio = Instant::now();
+    let alvo = &pacote.alvo;
+    let original = &pedido.iso_original;
     progresso(Etapa::Conferindo, 0.0);
-    if mesmo_arquivo(&pedido.saida, &pedido.iso_original) {
+    if mesmo_arquivo(&pedido.saida, original) {
         return Err(Erro::SaidaIgualOriginal);
     }
-    if pedido.saida.exists() && !pedido.sobrescrever {
-        return Err(Erro::SaidaJaExiste(pedido.saida.clone()));
+    let entrada = alvo.entrada_patch(original)?;
+    let saidas = alvo.arquivos_saida(original, &pedido.saida)?;
+    if saidas.iter().any(|s| mesmo_arquivo(s, original) || mesmo_arquivo(s, &entrada)) {
+        return Err(Erro::SaidaIgualOriginal);
     }
-    conferir(pacote, &pedido.iso_original)?;
-    let esperado = pacote.alvo.tamanho_resultado();
+    if !pedido.sobrescrever {
+        if let Some(existe) = saidas.iter().find(|s| s.exists()) {
+            return Err(Erro::SaidaJaExiste(existe.clone()));
+        }
+    }
+    conferir(pacote, original)?;
+    let esperado = alvo.tamanho_resultado();
+    let precisa = esperado + alvo.tamanho_extra(original) + MARGEM_ESPACO;
     let pasta_saida = pedido.saida.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let livre = espaco_livre(pasta_saida)?;
-    if livre < esperado + MARGEM_ESPACO {
-        return Err(Erro::EspacoInsuficiente { precisa: esperado + MARGEM_ESPACO, livre });
+    if livre < precisa {
+        return Err(Erro::EspacoInsuficiente { precisa, livre });
     }
     progresso(Etapa::Conferindo, 1.0);
 
@@ -108,21 +118,31 @@ fn instalar_imagem_xdelta(
         crate::baixar_patch(rede, pacote, &mut |f| progresso(Etapa::Baixando, f), cancelar)?;
     }
 
-    let parcial = caminho_parcial(&pedido.saida);
-    let resultado = gerar(pacote, pedido, &parcial, esperado, progresso, cancelar).and_then(|()| {
+    let saida_patch = alvo.saida_patch(original, &pedido.saida)?;
+    let parcial = caminho_parcial(&saida_patch);
+    let mut gravou = false;
+    let resultado = gerar(pacote, &entrada, &pedido.xdelta3, &parcial, esperado, progresso, cancelar).and_then(|()| {
         progresso(Etapa::Verificando, 0.0);
-        let hash_ra = pacote.alvo.verificar_resultado(&parcial)?;
-        fs::rename(&parcial, &pedido.saida)?;
+        let hash_ra = alvo.verificar_resultado(original, &parcial)?;
+        fs::rename(&parcial, &saida_patch)?;
+        gravou = true;
+        alvo.completar_saida(original, &pedido.saida)?;
         progresso(Etapa::Verificando, 1.0);
         Ok(Resultado {
             saida: pedido.saida.clone(),
-            compativel_ra: hash_ra.as_deref().zip(pacote.alvo.hash_ra_esperado()).map(|(a, b)| a.eq_ignore_ascii_case(b)),
+            compativel_ra: hash_ra.as_deref().zip(alvo.hash_ra_esperado()).map(|(a, b)| a.eq_ignore_ascii_case(b)),
             hash_ra,
             segundos: inicio.elapsed().as_secs_f64(),
         })
     });
     if resultado.is_err() {
         let _ = fs::remove_file(&parcial);
+        // Depois do patch gravado, uma falha desfaz tudo o que a instalação criou.
+        if gravou {
+            for s in &saidas {
+                let _ = fs::remove_file(s);
+            }
+        }
     }
     resultado
 }
@@ -130,7 +150,8 @@ fn instalar_imagem_xdelta(
 /// Roda o xdelta3 gravando em `parcial` e informa o progresso pelo tamanho do arquivo.
 fn gerar(
     pacote: &Pacote,
-    pedido: &Pedido,
+    entrada: &Path,
+    xdelta3: &Path,
     parcial: &Path,
     esperado: u64,
     progresso: &mut dyn FnMut(Etapa, f32),
@@ -140,9 +161,9 @@ fn gerar(
     if cancelar.load(Ordering::Relaxed) {
         return Err(Erro::Cancelado);
     }
-    let mut filho = Command::new(&pedido.xdelta3)
+    let mut filho = Command::new(xdelta3)
         .args(["-d", "-f", "-s"])
-        .arg(&pedido.iso_original)
+        .arg(entrada)
         .arg(pacote.patch())
         .arg(parcial)
         .env_remove("XDELTA")

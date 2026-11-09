@@ -172,3 +172,35 @@ pub fn bin_de_iso(iso: &[u8], cabecalho: usize) -> Vec<u8> {
     }
     bin
 }
+
+/// Ficha formato 2 de um jogo de PS1 (SLUS-00684, USA). `extra` entra antes do `}` final.
+#[allow(clippy::too_many_arguments)]
+pub fn ficha_ps1(
+    id: &str,
+    hash_origem: &str,
+    hash_resultado: &str,
+    tamanho_origem: u64,
+    tamanho_resultado: u64,
+    patch_sha: &str,
+    patch_tamanho: u64,
+    extra: &str,
+) -> String {
+    format!(
+        r#"{{"formato":2,"id":"{id}","jogo":{{"id":"jogo-ps1","nome":"Jogo de PS1"}},"plataforma":"ps1",
+        "instalacao":{{"tipo":"imagem-xdelta","patch":{{"nome":"patch.xdelta","url":"https://x/patch","sha256":"{patch_sha}","tamanho":{patch_tamanho}}}}},
+        "versao":"1.0","estado":"rascunho","idioma":"pt-BR","data":"2026-11-08",
+        "origem":{{"serial":"SLUS-00684","regiao":"usa","hash_ra":"{hash_origem}","tamanho":{tamanho_origem}}},
+        "resultado":{{"hash_ra":"{hash_resultado}","tamanho":{tamanho_resultado}}},"tradutores":[{{"nome":"Fulano"}}]{extra}}}"#
+    )
+}
+
+/// Executável `PS-X EXE` mínimo (cabeçalho de 2048 bytes declarando `corpo` bytes de código).
+pub fn exe_psx(corpo: usize, semente: u8) -> Vec<u8> {
+    let mut b = vec![0u8; 2048 + corpo];
+    b[..8].copy_from_slice(b"PS-X EXE");
+    b[28..32].copy_from_slice(&(corpo as u32).to_le_bytes());
+    for (i, x) in b[2048..].iter_mut().enumerate() {
+        *x = (i as u8).wrapping_mul(17).wrapping_add(semente);
+    }
+    b
+}

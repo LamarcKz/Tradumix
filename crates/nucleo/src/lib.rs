@@ -27,7 +27,7 @@ pub use pacote::{
     ArquivoBaixavel, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Imagens, Instalacao, Jogo, Midia, NOME_CAPA_ACERVO, Pacote, PacoteInvalido,
     Tradutor, carregar_pacotes, comparar_versoes, e_novo,
 };
-pub use plataformas::{Alvo, InfoPlataforma, OrigemPs2, PLATAFORMAS, Plataforma, ResultadoPs2, ler_alvo};
+pub use plataformas::{Alvo, InfoPlataforma, OrigemPs1, OrigemPs2, PLATAFORMAS, Plataforma, ResultadoPs1, ResultadoPs2, ler_alvo};
 pub use rede::{Rede, RedeUreq};
 pub use sincronizar::{Capas, Sincronizacao, sincronizar};
 pub use ps1::{IdentidadePs1, hash_ra_ps1, identificar_bin_ps1, identificar_ps1};
