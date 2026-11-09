@@ -42,6 +42,22 @@ quando sai uma versão nova, e você escolhe quando atualizar.
 | `docs/ficha.md` | Formato da ficha de tradução (`ficha.json`). |
 | `docs/catalogo.md` | Formato do catálogo (`indice-v2.json`) que o app baixa do GitHub. |
 
+## Ferramentas de teste
+
+Para quem prepara uma tradução testar antes de publicar, sem instalar o app:
+
+- **`tradumix-cli`** (`crates/cli`): o mesmo núcleo do app na linha de comando. `validar` confere a
+  ficha e os arquivos do pacote; `identificar` mostra serial e hash do RetroAchievements de um `.cue`
+  (PS1) ou de uma ISO (PS2); `instalar` e `remover` fazem o que o app faz, sem internet; `previa` gera
+  o `lista.json` das telas. Toda resposta é um JSON; `tradumix-cli` sem argumentos mostra o uso.
+- **Prévia** (`npm run build:previa`, em `dist-previa/`): as telas do app num site estático, lendo o
+  `lista.json` do `tradumix-cli previa`. Precisa ser servida num endereço local (por exemplo,
+  `npx vite preview --config vite.previa.config.ts`).
+
+A cada envio para a `desenvolvimento`, o workflow [`ferramentas.yml`](.github/workflows/ferramentas.yml)
+publica os dois na pré-release `ferramentas-dev`, com a versão `dev-<commit>`. Cada versão do app leva
+também os dois, com o número da versão.
+
 ## Como rodar
 
 Requer Node.js 24 e Rust (edição 2024), no Windows.
