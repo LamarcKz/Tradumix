@@ -163,6 +163,23 @@ impl Pacote {
         self.pasta.join(&self.ficha.baixavel_principal().nome)
     }
 
+    /// Os arquivos da ficha que já estão na pasta batem com o `tamanho` e o `sha256` dela.
+    /// Os que não estão (ainda não baixados) não contam.
+    pub fn conferir_baixados(&self) -> Result<(), String> {
+        for a in self.ficha.arquivos() {
+            let caminho = self.pasta.join(&a.nome);
+            let Ok(meta) = fs::metadata(&caminho) else { continue };
+            if meta.len() != a.tamanho {
+                return Err(format!("o arquivo {} tem {} bytes, e a ficha diz {}", a.nome, meta.len(), a.tamanho));
+            }
+            let sha = crate::rede::sha256_arquivo(&caminho).unwrap_or_default();
+            if !sha.eq_ignore_ascii_case(&a.sha256) {
+                return Err(format!("o arquivo {} não confere com o sha256 da ficha", a.nome));
+            }
+        }
+        Ok(())
+    }
+
     /// O patch já foi baixado para a pasta.
     pub fn patch_disponivel(&self) -> bool {
         self.patch().is_file()
@@ -230,6 +247,11 @@ fn procurar_pacotes(pasta: &Path, nivel: usize, achados: &mut Vec<PathBuf>) {
             procurar_pacotes(&caminho, nivel + 1, achados);
         }
     }
+}
+
+/// Lê o pacote de uma pasta com `ficha.json` (sem procurar em subpastas).
+pub fn ler_pacote_da_pasta(pasta: &Path) -> Result<Pacote, String> {
+    ler_pacote(pasta)
 }
 
 fn ler_pacote(pasta: &Path) -> Result<Pacote, String> {

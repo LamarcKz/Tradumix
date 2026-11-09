@@ -4483,6 +4483,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "tradumix-cli"
+version = "0.1.0"
+dependencies = [
+ "md-5",
+ "nucleo",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "zip 2.6.1",
+]
+
+[[package]]
 name = "tray-icon"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -28,7 +28,7 @@ pub use cue::{Cue, Faixa, TipoFaixa, escrever_cue, ler_cue};
 pub use iso9660::{Iso, Setores};
 pub use pacote::{
     ArquivoBaixavel, ArquivoDoPc, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Imagens, Instalacao, Jogo, Midia, NOME_CAPA_ACERVO, Pacote, PacoteInvalido,
-    Tradutor, carregar_pacotes, comparar_versoes, e_novo,
+    Tradutor, carregar_pacotes, comparar_versoes, e_novo, ler_pacote_da_pasta,
 };
 pub use plataformas::{Alvo, InfoPlataforma, OrigemPc, OrigemPs1, OrigemPs2, PLATAFORMAS, Plataforma, ReferenciaPc, ResultadoPs1, ResultadoPs2, ler_alvo};
 pub use rede::{Rede, RedeUreq};

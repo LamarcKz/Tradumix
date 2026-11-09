@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/nucleo", "src-tauri"]
+members = ["crates/nucleo", "crates/cli", "src-tauri"]
 
 # Os programas que compilam as dependências saem com informações de depuração também no
 # release: sem elas o Smart App Control do Windows pode bloquear algum deles.

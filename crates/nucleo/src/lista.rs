@@ -69,6 +69,11 @@ pub struct ListaJogos {
     pub mostrar_trailers: bool,
 }
 
+/// A data de hoje (AAAA-MM-DD), para o selo "Novo".
+pub fn hoje() -> String {
+    chrono::Local::now().format("%Y-%m-%d").to_string()
+}
+
 /// Imagem da pasta do pacote como `data:` URL (as telas não leem arquivos do disco).
 pub fn data_url(caminho: &Path) -> Option<String> {
     let bytes = std::fs::read(caminho).ok()?;
