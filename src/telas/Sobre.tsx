@@ -44,7 +44,7 @@ export function Sobre({ aoVoltar }: { aoVoltar: () => void }) {
         </li>
         <li>
           <p>xdelta3 3.2.2 — Apache 2.0, Joshua MacDonald</p>
-          <p className="text-suave">Aplica o patch na ISO. Vai junto com o app, compilado do código oficial; a licença está em licencas/xdelta3-LICENSE.txt, na pasta do Tradumix.</p>
+          <p className="text-suave">Aplica o patch na imagem do jogo (ISO ou .bin). Vai junto com o app, compilado do código oficial; a licença está em licencas/xdelta3-LICENSE.txt, na pasta do Tradumix.</p>
           <a href="https://github.com/jmacd/xdelta" target="_blank" rel="noreferrer" className={link}>
             Código do xdelta3
           </a>

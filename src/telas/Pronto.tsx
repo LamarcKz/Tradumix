@@ -12,13 +12,15 @@ interface Props {
 
 export function Pronto({ nomeJogo, plataforma, traducao, resultado, aoVoltar }: Props) {
   const segundos = Math.max(1, Math.round(resultado.segundos))
+  // No PC a tradução vai para a própria pasta do jogo: não há cópia gerada.
+  const naPasta = plataforma.info.escolhe_pasta
   return (
     <section className="mx-auto grid max-w-4xl grid-cols-[auto_1fr] items-start gap-12 px-10 pt-20">
       <Caixa nome={nomeJogo} capa={plataforma.capa} plataforma={plataforma.info} tamanho="grande" />
       <div className="min-w-0">
-        <h1 className="titulo text-6xl">{plataforma.info.arquivo} traduzida pronta</h1>
+        <h1 className="titulo text-6xl">{naPasta ? "Tradução instalada na pasta do jogo." : `${plataforma.info.arquivo} traduzida pronta`}</h1>
         <p className="mt-3 text-suave">
-          {nomeJogo} em {traducao.idioma.toUpperCase()}, versão {traducao.versao}, gerada em {segundos} s.
+          {nomeJogo} em {traducao.idioma.toUpperCase()}, versão {traducao.versao}, {naPasta ? "instalada" : "gerada"} em {segundos} s.
         </p>
 
         <p className="mt-6 break-all rounded-md bg-superficie px-4 py-3 text-sm">{resultado.saida}</p>
@@ -29,7 +31,7 @@ export function Pronto({ nomeJogo, plataforma, traducao, resultado, aoVoltar }: 
             Compatível com RetroAchievements
           </p>
         ) : (
-          <p className="mt-4 text-erro">O hash do RetroAchievements mudou: as conquistas podem não funcionar.</p>
+          <p className="mt-4 text-erro">O RetroAchievements não reconhece esta cópia</p>
         )}
 
         <div className="mt-8">
@@ -46,7 +48,7 @@ export function Pronto({ nomeJogo, plataforma, traducao, resultado, aoVoltar }: 
             onClick={() => void api.abrirPasta(resultado.saida)}
             className="rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5]"
           >
-            Abrir pasta
+            {naPasta ? "Abrir a pasta do jogo" : "Abrir pasta"}
           </button>
           <button onClick={aoVoltar} className="rounded-md border border-borda px-5 py-3 hover:border-destaque">
             Voltar ao início

@@ -17,6 +17,7 @@ vi.mock("../api", () => ({
   definirMostrarTrailers: vi.fn(),
   conferirIso: vi.fn(),
   traduzir: vi.fn(),
+  removerTraducao: vi.fn(),
   cancelarTraducao: vi.fn(),
   abrirPasta: vi.fn(),
   aoProgresso: vi.fn(() => () => {}),
@@ -170,6 +171,7 @@ describe("Jogo", () => {
     falso.conferirIso.mockResolvedValue({
       serve: false,
       mensagem: "Esta tradução precisa da Jak II (USA), serial SCUS-97265. A ISO escolhida é SLES-12345.",
+      aviso: null,
       saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso",
       ja_existe: false,
     })
@@ -183,7 +185,7 @@ describe("Jogo", () => {
   it("iso_certa_mostra_saida_e_traduz", async () => {
     const traduzir = vi.fn()
     falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2.iso")
-    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
+    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
     render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={traduzir} />)
     await userEvent.click(screen.getByRole("button", { name: "Selecionar ISO" }))
     expect(await screen.findByText("C:/jogos/Jak II (USA) PT-BR v1.0.iso")).toBeInTheDocument()
@@ -200,7 +202,7 @@ describe("Jogo", () => {
   it("saida_existente_pede_confirmacao", async () => {
     const traduzir = vi.fn()
     falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2.iso")
-    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: true })
+    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: true })
     render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={traduzir} />)
     await userEvent.click(screen.getByRole("button", { name: "Selecionar ISO" }))
     expect(await screen.findByText("Já existe um arquivo com esse nome.")).toBeInTheDocument()
@@ -225,7 +227,7 @@ describe("Jogo, plataformas", () => {
     expect(screen.getByRole("tab", { name: "PC" })).toHaveAttribute("aria-selected", "true")
     expect(screen.getByText("Tradução PT-BR versão 2.0, para a versão Steam")).toBeInTheDocument()
     expect(screen.getByText("Escolha a pasta do jogo.")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Selecionar pasta do jogo" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Escolher pasta do jogo" })).toBeInTheDocument()
   })
 
   it("abre_na_aba_da_plataforma_do_filtro", () => {
@@ -244,12 +246,12 @@ describe("Jogo, plataformas", () => {
   it("traduzir_na_aba_pc_manda_a_plataforma", async () => {
     const traduzir = vi.fn()
     falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2")
-    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/saida", ja_existe: false })
+    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso: null, saida_sugerida: "C:/jogos/jak2", ja_existe: false })
     render(<JogoTela jogo={jogoPs2ePc()} plataformaInicial="pc" aoVoltar={() => {}} aoTraduzir={traduzir} />)
-    await userEvent.click(screen.getByRole("button", { name: "Selecionar pasta do jogo" }))
-    await userEvent.click(await screen.findByRole("button", { name: "Traduzir" }))
+    await userEvent.click(screen.getByRole("button", { name: "Escolher pasta do jogo" }))
+    await userEvent.click(await screen.findByRole("button", { name: "Instalar tradução" }))
     expect(falso.conferirIso).toHaveBeenCalledWith("jak2-pc-ptbr", "C:/jogos/jak2")
-    expect(traduzir).toHaveBeenCalledWith(expect.objectContaining({ pacoteId: "jak2-pc-ptbr", plataformaId: "pc" }))
+    expect(traduzir).toHaveBeenCalledWith({ pacoteId: "jak2-pc-ptbr", plataformaId: "pc", iso: "C:/jogos/jak2", saida: "C:/jogos/jak2", sobrescrever: false })
   })
 })
 
@@ -257,7 +259,7 @@ describe("Jogo, outra pasta", () => {
   it("escolher_outra_pasta_confere_se_o_arquivo_existe", async () => {
     const traduzir = vi.fn()
     falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2.iso")
-    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
+    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
     falso.escolherPasta.mockResolvedValue("D:/outra")
     falso.arquivoExiste.mockResolvedValue(true)
     render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={traduzir} />)
@@ -269,7 +271,7 @@ describe("Jogo, outra pasta", () => {
   })
 
   it("volta_de_um_erro_com_a_iso_e_a_saida_escolhidas", async () => {
-    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
+    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
     falso.arquivoExiste.mockResolvedValue(true)
     render(
       <JogoTela
@@ -398,14 +400,104 @@ describe("Pronto", () => {
     await waitFor(() => expect(falso.abrirPasta).toHaveBeenCalledWith("C:/jogos/Jak II (USA) PT-BR v1.0.iso"))
   })
 
-  it("pronto_avisa_quando_o_hash_mudou", () => {
+  it("pronto_ps2_hash_mudou", () => {
     render(<Pronto nomeJogo="Jak II" plataforma={jak2.plataformas[0]} traducao={traducao} resultado={resultado(false)} aoVoltar={() => {}} />)
-    expect(screen.getByText(/as conquistas podem não funcionar/)).toBeInTheDocument()
+    expect(screen.getByText("O RetroAchievements não reconhece esta cópia")).toBeInTheDocument()
+    expect(screen.queryByText(/O hash do RetroAchievements mudou/)).not.toBeInTheDocument()
   })
 
-  it("pronto_sem_ra_nao_mostra_bloco", () => {
-    render(<Pronto nomeJogo="Jak II" plataforma={plataforma(infoPc, [traducao])} traducao={traducao} resultado={resultado(null)} aoVoltar={() => {}} />)
-    expect(screen.getByRole("heading", { name: "pasta do jogo traduzida pronta" })).toBeInTheDocument()
+  it("pronto_pc", async () => {
+    const r: Resultado = { saida: "C:/Steam/Jogo", hash_ra: null, compativel_ra: null, segundos: 3 }
+    render(<Pronto nomeJogo="Jak II" plataforma={plataforma(infoPc, [traducao])} traducao={traducao} resultado={r} aoVoltar={() => {}} />)
+    expect(screen.getByRole("heading", { name: "Tradução instalada na pasta do jogo." })).toBeInTheDocument()
     expect(screen.queryByText(/RetroAchievements/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Abrir pasta" })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole("button", { name: "Abrir a pasta do jogo" }))
+    await waitFor(() => expect(falso.abrirPasta).toHaveBeenCalledWith("C:/Steam/Jogo"))
+  })
+})
+
+describe("Jogo, selos", () => {
+  it("selo_ra_compativel", () => {
+    render(<JogoTela jogo={comTraducao({ ra: "compativel" })} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.getByText("Compatível com RetroAchievements")).toBeInTheDocument()
+  })
+
+  it("selo_ra_nao_reconhece", () => {
+    render(<JogoTela jogo={comTraducao({ ra: "nao_reconhece" })} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.getByText("O RetroAchievements não reconhece esta cópia")).toBeInTheDocument()
+    expect(screen.queryByText("Compatível com RetroAchievements")).not.toBeInTheDocument()
+  })
+
+  it("selo_contem_programa", () => {
+    const jogo: Jogo = { id: "j", nome: "Jogo", plataformas: [plataforma(infoPc, [{ ...traducaoJak2, ra: null, contem_programa: true }])] }
+    render(<JogoTela jogo={jogo} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    const selo = screen.getByText("Contém programa")
+    expect(selo).toHaveAttribute("title", "Esta tradução instala um programa (por exemplo, um carregador de mods) na pasta do jogo.")
+    expect(screen.queryByText(/RetroAchievements/)).not.toBeInTheDocument()
+  })
+
+  it("sem_programa_nao_tem_selo", () => {
+    render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.queryByText("Contém programa")).not.toBeInTheDocument()
+  })
+})
+
+describe("Jogo, PC", () => {
+  const pc: Jogo = { id: "j", nome: "Jogo", plataformas: [plataforma(infoPc, [{ ...traducaoJak2, id: "j-pc", ra: null }])] }
+
+  it("pc_pede_pasta", async () => {
+    falso.escolherArquivoDoJogo.mockResolvedValue("C:/Steam/Jogo")
+    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso: null, saida_sugerida: "C:/Steam/Jogo", ja_existe: false })
+    render(<JogoTela jogo={pc} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    await userEvent.click(screen.getByRole("button", { name: "Escolher pasta do jogo" }))
+    expect(falso.escolherArquivoDoJogo).toHaveBeenCalledWith(infoPc)
+    expect(await screen.findByRole("button", { name: "Instalar tradução" })).toBeEnabled()
+    expect(screen.queryByText(/será gravada em/)).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Escolher outra pasta" })).not.toBeInTheDocument()
+  })
+
+  it("pc_mostra_aviso_de_versao", async () => {
+    const aviso = "Esta pasta tem uma versão do jogo diferente da testada (1.0.3). A tradução pode não funcionar direito."
+    falso.escolherArquivoDoJogo.mockResolvedValue("C:/Steam/Jogo")
+    falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso, saida_sugerida: "C:/Steam/Jogo", ja_existe: false })
+    render(<JogoTela jogo={pc} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    await userEvent.click(screen.getByRole("button", { name: "Escolher pasta do jogo" }))
+    expect(await screen.findByText(aviso)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Instalar tradução" })).toBeEnabled()
+  })
+
+  it("remover_traducao", async () => {
+    falso.escolherArquivoDoJogo.mockResolvedValue("C:/Steam/Jogo")
+    falso.removerTraducao.mockResolvedValue({ removidos: 1, restaurados: 1, mantidos: [] })
+    render(<JogoTela jogo={pc} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    await userEvent.click(screen.getByRole("button", { name: "Remover tradução" }))
+    expect(falso.escolherArquivoDoJogo).toHaveBeenCalledWith(infoPc)
+    expect(falso.removerTraducao).toHaveBeenCalledWith("j-pc", "C:/Steam/Jogo")
+    expect(await screen.findByText("Tradução removida.")).toBeInTheDocument()
+    expect(screen.queryByText(/atualizados pela loja/)).not.toBeInTheDocument()
+  })
+
+  it("remover_traducao_com_arquivo_da_loja", async () => {
+    falso.escolherArquivoDoJogo.mockResolvedValue("C:/Steam/Jogo")
+    falso.removerTraducao.mockResolvedValue({ removidos: 0, restaurados: 0, mantidos: ["dados/menu.txt"] })
+    render(<JogoTela jogo={pc} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    await userEvent.click(screen.getByRole("button", { name: "Remover tradução" }))
+    expect(await screen.findByText("Tradução removida.")).toBeInTheDocument()
+    expect(screen.getByText("Alguns arquivos foram atualizados pela loja e ficaram como estão.")).toBeInTheDocument()
+  })
+
+  it("remover_traducao_com_erro", async () => {
+    falso.escolherArquivoDoJogo.mockResolvedValue("C:/Steam/Jogo")
+    falso.removerTraducao.mockRejectedValue("Esta tradução não está instalada nesta pasta.")
+    render(<JogoTela jogo={pc} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    await userEvent.click(screen.getByRole("button", { name: "Remover tradução" }))
+    expect(await screen.findByText("Esta tradução não está instalada nesta pasta.")).toBeInTheDocument()
+    expect(screen.queryByText("Tradução removida.")).not.toBeInTheDocument()
+  })
+
+  it("ps2_nao_tem_remover", () => {
+    render(<JogoTela jogo={jak2} aoVoltar={() => {}} aoTraduzir={() => {}} />)
+    expect(screen.queryByRole("button", { name: "Remover tradução" })).not.toBeInTheDocument()
   })
 })

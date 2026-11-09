@@ -1,14 +1,19 @@
 # Tradumix
 
-App para Windows que aplica traduções de jogos na cópia que você já tem. Hoje o app instala
-traduções de PS2: você escolhe o jogo, seleciona a sua ISO e recebe uma ISO traduzida ao lado da
-original. Nos jogos com RetroAchievements, a tradução preserva o hash, então as conquistas
-continuam funcionando.
+App para Windows que aplica traduções de jogos na cópia que você já tem:
+
+- **PS2:** você seleciona a sua ISO e recebe uma ISO traduzida ao lado da original.
+- **PS1:** você seleciona o `.cue` e recebe um `.cue` com os `.bin` traduzidos ao lado.
+- **PC:** você escolhe a pasta do jogo instalado; o app guarda os arquivos que troca e pode remover a
+  tradução depois.
+
+Nos jogos com RetroAchievements, o app mostra se a cópia traduzida continua reconhecida, para as
+conquistas funcionarem.
 
 As traduções vêm só do catálogo público. Cada tradução diz a plataforma do jogo; o app mostra só as
 das plataformas que ele sabe instalar.
 
-O app nunca distribui o jogo: ele usa só o patch (`.xdelta`) da tradução.
+O app nunca distribui o jogo: ele usa só o patch (`.xdelta`) ou os arquivos da tradução.
 
 > Em desenvolvimento.
 

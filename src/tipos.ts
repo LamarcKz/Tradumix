@@ -21,6 +21,8 @@ export interface InfoPlataforma {
   extensoes: string[]
   /** A plataforma tem RetroAchievements. */
   tem_ra: boolean
+  /** A pessoa escolhe a pasta do jogo instalado (PC) em vez de um arquivo. */
+  escolhe_pasta: boolean
 }
 
 export interface Traducao {
@@ -43,7 +45,13 @@ export interface Traducao {
   patch_disponivel: boolean
   tamanho_download: number | null
   trailer_youtube: string | null
+  /** Selo do RetroAchievements; `null` em plataforma sem RetroAchievements. */
+  ra: SituacaoRa | null
+  /** A tradução põe na pasta do jogo um arquivo que roda (carregador de mods, por exemplo). */
+  contem_programa: boolean
 }
+
+export type SituacaoRa = "compativel" | "nao_reconhece"
 
 /** As traduções de um jogo numa plataforma. */
 export interface PlataformaDoJogo {
@@ -81,6 +89,8 @@ export interface SituacaoCatalogo {
 export interface Conferencia {
   serve: boolean
   mensagem: string | null
+  /** Serve, mas com um aviso (PC com outra versão do jogo). */
+  aviso: string | null
   saida_sugerida: string
   ja_existe: boolean
 }
@@ -91,6 +101,14 @@ export interface Resultado {
   hash_ra: string | null
   compativel_ra: boolean | null
   segundos: number
+}
+
+/** O que "Remover tradução" fez na pasta do jogo. */
+export interface Remocao {
+  removidos: number
+  restaurados: number
+  /** Arquivos que a loja atualizou depois da instalação e ficaram como estão. */
+  mantidos: string[]
 }
 
 export interface Progresso {

@@ -2281,6 +2281,7 @@ dependencies = [
 name = "nucleo"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "md-5",
  "serde",
@@ -4467,7 +4468,6 @@ dependencies = [
 name = "tradumix"
 version = "0.2.0"
 dependencies = [
- "base64 0.22.1",
  "chrono",
  "nucleo",
  "rusqlite",

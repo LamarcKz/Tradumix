@@ -8,10 +8,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use base64::Engine;
-use nucleo::{
-    Atualizacao, Capas, Entrada, Erro, Estado as EstadoTraducao, Historico, Imagem, InfoPlataforma, Pacote, Pedido, RedeUreq, Resultado, Sincronizacao, Tradutor,
-};
+use nucleo::lista::{ListaJogos, montar_jogos};
+use nucleo::{Capas, Entrada, Erro, Historico, Pacote, Pedido, RedeUreq, RemocaoPc, Resultado, Sincronizacao};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
@@ -137,59 +135,12 @@ impl Estado {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct TraducaoDto {
-    pub id: String,
-    pub versao: String,
-    pub estado: EstadoTraducao,
-    pub idioma: String,
-    /// Para qual versão do jogo é a tradução, já como texto ("versão USA (SCUS-97265)").
-    pub detalhes: String,
-    /// O que a pessoa precisa escolher para traduzir.
-    pub instrucao: String,
-    pub tradutores: Vec<Tradutor>,
-    pub permissao: Option<String>,
-    pub descricao: String,
-    pub traduzido: Vec<String>,
-    pub limitacoes: Vec<String>,
-    pub data: String,
-    pub fundo: Option<String>,
-    pub novo: bool,
-    pub patch_disponivel: bool,
-    /// Tamanho do patch a baixar, quando ele ainda não está no PC.
-    pub tamanho_download: Option<u64>,
-    /// Id do trailer no YouTube.
-    pub trailer_youtube: Option<String>,
-}
-
-/// As traduções de um jogo numa plataforma.
-#[derive(Debug, Clone, Serialize)]
-pub struct PlataformaDoJogoDto {
-    pub info: InfoPlataforma,
-    pub capa: Option<String>,
-    pub traducoes: Vec<TraducaoDto>,
-}
-
-/// Um card: o jogo com as plataformas em que há tradução (na ordem da lista central do núcleo).
-#[derive(Debug, Clone, Serialize)]
-pub struct JogoDto {
-    pub id: String,
-    pub nome: String,
-    pub plataformas: Vec<PlataformaDoJogoDto>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ListaJogos {
-    pub jogos: Vec<JogoDto>,
-    pub atualizacoes: Vec<Atualizacao>,
-    pub catalogo: Sincronizacao,
-    pub mostrar_trailers: bool,
-}
-
 #[derive(Debug, Serialize)]
 pub struct ConferenciaDto {
     pub serve: bool,
     pub mensagem: Option<String>,
+    /// Serve, mas com um aviso (PC com outra versão do jogo).
+    pub aviso: Option<String>,
     pub saida_sugerida: String,
     pub ja_existe: bool,
 }
@@ -202,18 +153,6 @@ struct Progresso {
 
 fn hoje() -> String {
     chrono::Local::now().format("%Y-%m-%d").to_string()
-}
-
-fn data_url(caminho: &Path) -> Option<String> {
-    let bytes = std::fs::read(caminho).ok()?;
-    let ext = caminho.extension()?.to_string_lossy().to_lowercase();
-    let mime = match ext.as_str() {
-        "png" => "image/png",
-        "jpg" | "jpeg" => "image/jpeg",
-        "webp" => "image/webp",
-        _ => return None,
-    };
-    Some(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
 }
 
 /// Antes da primeira sincronização da sessão: a data da última que deu certo, sem aviso.
@@ -232,72 +171,28 @@ pub fn achar_pacote(cache: &Path, id: &str) -> Option<Pacote> {
     nucleo::carregar_pacotes(cache).pacotes.into_iter().find(|p| p.ficha.id == id)
 }
 
-fn traducao_dto(p: &Pacote, hoje: &str) -> TraducaoDto {
-    let f = &p.ficha;
-    let disponivel = p.patch_disponivel();
-    TraducaoDto {
-        id: f.id.clone(),
-        versao: f.versao.clone(),
-        estado: f.estado,
-        idioma: f.idioma.clone(),
-        detalhes: p.alvo.detalhes(),
-        instrucao: p.alvo.instrucao(),
-        tradutores: f.tradutores.clone(),
-        permissao: f.permissao.clone(),
-        descricao: f.descricao.clone(),
-        traduzido: f.traduzido.clone(),
-        limitacoes: f.limitacoes.clone(),
-        data: f.data.clone(),
-        fundo: p.imagem(Imagem::Fundo).and_then(|c| data_url(&c)),
-        novo: nucleo::e_novo(f, hoje),
-        patch_disponivel: disponivel,
-        tamanho_download: if disponivel { None } else { Some(f.baixavel_principal().tamanho) },
-        trailer_youtube: f.midia.as_ref().and_then(|m| m.trailer_youtube.clone()),
-    }
-}
-
 /// Fichas do cache que não abrem (por exemplo, de uma versão antiga do app) ficam de fora; a próxima
 /// sincronização refaz o cache.
 pub fn montar_lista(cache: &Path, historico: &Historico, sinc: &Sincronizacao, hoje: &str) -> ListaJogos {
     let pacotes = nucleo::carregar_pacotes(cache).pacotes;
-    let mut jogos: Vec<JogoDto> = Vec::new();
-    for p in &pacotes {
-        let indice_jogo = match jogos.iter().position(|j| j.id == p.ficha.jogo.id) {
-            Some(i) => i,
-            None => {
-                jogos.push(JogoDto { id: p.ficha.jogo.id.clone(), nome: p.ficha.jogo.nome.clone(), plataformas: Vec::new() });
-                jogos.len() - 1
-            }
-        };
-        let jogo = &mut jogos[indice_jogo];
-        let info = p.alvo.plataforma().info();
-        let plataforma = match jogo.plataformas.iter().position(|x| x.info.id == info.id) {
-            Some(i) => &mut jogo.plataformas[i],
-            None => {
-                jogo.plataformas.push(PlataformaDoJogoDto { info, capa: None, traducoes: Vec::new() });
-                jogo.plataformas.last_mut().unwrap()
-            }
-        };
-        if plataforma.capa.is_none() {
-            plataforma.capa = p.imagem(Imagem::Capa).and_then(|c| data_url(&c));
-        }
-        plataforma.traducoes.push(traducao_dto(p, hoje));
-    }
-    let ordem = |id: &str| nucleo::Plataforma::de_id(id).map(|p| p.ordem()).unwrap_or(usize::MAX);
-    for jogo in &mut jogos {
-        jogo.plataformas.sort_by_key(|p| ordem(p.info.id));
-    }
-    jogos.sort_by(|a, b| a.nome.to_lowercase().cmp(&b.nome.to_lowercase()));
-    ListaJogos { jogos, atualizacoes: historico.atualizacoes(&pacotes), catalogo: sinc.clone(), mostrar_trailers: true }
+    ListaJogos { jogos: montar_jogos(&pacotes, hoje), atualizacoes: historico.atualizacoes(&pacotes), catalogo: sinc.clone(), mostrar_trailers: true }
 }
 
 pub fn conferir_interno(pacote: &Pacote, iso: &Path) -> ConferenciaDto {
     let saida = nucleo::nome_saida(pacote, iso);
-    let (serve, mensagem) = match nucleo::conferir(pacote, iso) {
-        Ok(_) => (true, None),
-        Err(e) => (false, Some(e.mensagem())),
+    let (serve, mensagem, aviso) = match nucleo::conferir(pacote, iso) {
+        Ok(aviso) => (true, None, aviso),
+        Err(e) => (false, Some(e.mensagem()), None),
     };
-    ConferenciaDto { serve, mensagem, ja_existe: saida.exists(), saida_sugerida: saida.to_string_lossy().into_owned() }
+    // No PC a tradução vai para a própria pasta do jogo: não há arquivo novo para confirmar.
+    let ja_existe = !pacote.alvo.plataforma().info().escolhe_pasta && saida.exists();
+    ConferenciaDto { serve, mensagem, aviso, ja_existe, saida_sugerida: saida.to_string_lossy().into_owned() }
+}
+
+/// Tira uma tradução de PC da pasta do jogo.
+pub fn remover_interno(cache: &Path, pacote_id: &str, pasta: &Path) -> Result<RemocaoPc, String> {
+    let pacote = achar_pacote(cache, pacote_id).ok_or("Tradução não encontrada.")?;
+    nucleo::remover_pc(&pacote, pasta).map_err(|e| e.mensagem())
 }
 
 /// O xdelta3 vai ao lado do executável do app (sidecar do Tauri).
@@ -382,6 +277,18 @@ pub async fn traduzir(
         app_fim.exit(0);
     }
     resultado
+}
+
+#[tauri::command]
+pub async fn remover_traducao(estado: State<'_, Estado>, pacote_id: String, pasta: String) -> Result<RemocaoPc, String> {
+    if !estado.comecar_traducao() {
+        return Err("Espere um instante: já há uma tradução em andamento ou o catálogo está sendo atualizado.".into());
+    }
+    let cache = estado.cache();
+    let traduzindo = estado.traduzindo.clone();
+    let r = tauri::async_runtime::spawn_blocking(move || remover_interno(&cache, &pacote_id, Path::new(&pasta))).await;
+    traduzindo.store(false, Ordering::SeqCst);
+    r.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -623,6 +530,49 @@ mod testes {
         assert!(c.serve, "{:?}", c.mensagem);
         assert_eq!(c.saida_sugerida, raiz.path().join("Jak II (USA) PT-BR v1.0.iso").to_string_lossy());
         assert!(!c.ja_existe);
+    }
+
+    /// Pasta de jogo de PC com `jogo.exe` e um pacote de PC no cache que a reconhece por ele.
+    fn pc_no_cache(raiz: &Path, exe: &[u8]) -> (PathBuf, Pacote) {
+        let jogo = raiz.join("Jogo de PC");
+        fs::create_dir_all(&jogo).unwrap();
+        fs::write(jogo.join("jogo.exe"), exe).unwrap();
+        let refs = format!(r#"[{{"caminho":"jogo.exe","sha256":"{}"}}]"#, comum::sha256_hex(b"EXE"));
+        let arquivos = format!(r#"[{{"caminho":"a.txt","sha256":"{}","tamanho":1}}]"#, comum::sha256_hex(b"a"));
+        let ficha = comum::ficha_pc("jogo-pc-ptbr", "1.0", comum::SHA_A, 10, &arquivos, &refs);
+        let p = raiz.join("cache").join("jogo-pc-ptbr");
+        fs::create_dir_all(&p).unwrap();
+        fs::write(p.join("ficha.json"), ficha).unwrap();
+        (jogo, nucleo::carregar_pacotes(&raiz.join("cache")).pacotes.remove(0))
+    }
+
+    #[test]
+    fn conferir_pc_com_outra_versao_avisa_e_serve() {
+        let raiz = tempfile::tempdir().unwrap();
+        let (jogo, pacote) = pc_no_cache(raiz.path(), b"EXE v2");
+        let c = conferir_interno(&pacote, &jogo);
+        assert!(c.serve);
+        assert!(c.aviso.unwrap().starts_with("Esta pasta tem uma versão do jogo diferente da testada"));
+        assert!(!c.ja_existe, "no PC a saída é a própria pasta, não um arquivo novo");
+        assert_eq!(c.saida_sugerida, jogo.to_string_lossy());
+    }
+
+    #[test]
+    fn conferir_pc_com_a_versao_testada_nao_avisa() {
+        let raiz = tempfile::tempdir().unwrap();
+        let (jogo, pacote) = pc_no_cache(raiz.path(), b"EXE");
+        let c = conferir_interno(&pacote, &jogo);
+        assert!(c.serve);
+        assert_eq!(c.aviso, None);
+    }
+
+    #[test]
+    fn remover_sem_instalacao_explica() {
+        let raiz = tempfile::tempdir().unwrap();
+        let (jogo, _) = pc_no_cache(raiz.path(), b"EXE");
+        let erro = remover_interno(&raiz.path().join("cache"), "jogo-pc-ptbr", &jogo).unwrap_err();
+        assert_eq!(erro, "Esta tradução não está instalada nesta pasta.");
+        assert_eq!(remover_interno(&raiz.path().join("cache"), "nada", &jogo).unwrap_err(), "Tradução não encontrada.");
     }
 
     #[test]

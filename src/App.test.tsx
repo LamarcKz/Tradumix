@@ -13,6 +13,7 @@ vi.mock("./api", () => ({
   definirMostrarTrailers: vi.fn(),
   conferirIso: vi.fn(),
   traduzir: vi.fn(),
+  removerTraducao: vi.fn(),
   cancelarTraducao: vi.fn(),
   abrirPasta: vi.fn(),
   aoProgresso: vi.fn(() => () => {}),
@@ -36,7 +37,7 @@ beforeEach(() => {
   falso.listarJogos.mockResolvedValue(lista)
   falso.sincronizarCatalogo.mockResolvedValue(lista)
   falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2.iso")
-  falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
+  falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
 })
 
 async function ateTraduzir() {
@@ -126,16 +127,16 @@ it("volta_do_erro_na_mesma_plataforma", async () => {
   falso.listarJogos.mockResolvedValue(dois)
   falso.sincronizarCatalogo.mockResolvedValue(dois)
   falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2")
-  falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/saida", ja_existe: false })
+  falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso: null, saida_sugerida: "C:/jogos/jak2", ja_existe: false })
   falso.traduzir.mockRejectedValue("Deu errado.")
   render(<App />)
   await userEvent.click(await screen.findByRole("button", { name: "PC" }))
   await userEvent.click(await screen.findByRole("button", { name: /Abrir Jak II/ }))
   expect(screen.getByRole("tab", { name: "PC" })).toHaveAttribute("aria-selected", "true")
-  await userEvent.click(screen.getByRole("button", { name: "Selecionar pasta do jogo" }))
-  await userEvent.click(await screen.findByRole("button", { name: "Traduzir" }))
+  await userEvent.click(screen.getByRole("button", { name: "Escolher pasta do jogo" }))
+  await userEvent.click(await screen.findByRole("button", { name: "Instalar tradução" }))
   expect(await screen.findByText("Deu errado.")).toBeInTheDocument()
   expect(screen.getByRole("tab", { name: "PC" })).toHaveAttribute("aria-selected", "true")
   expect(screen.getByText("C:/jogos/jak2")).toBeInTheDocument()
-  expect(falso.traduzir).toHaveBeenCalledWith("jak2-pc-ptbr", "C:/jogos/jak2", "C:/jogos/saida", false)
+  expect(falso.traduzir).toHaveBeenCalledWith("jak2-pc-ptbr", "C:/jogos/jak2", "C:/jogos/jak2", false)
 })

@@ -2,10 +2,25 @@
 
 import type { InfoPlataforma, Jogo, ListaJogos, PlataformaDoJogo, Traducao } from "../tipos"
 
-export const infoPs2: InfoPlataforma = { id: "ps2", nome: "PlayStation 2", sigla: "PS2", arquivo: "ISO", extensoes: ["iso"], tem_ra: true }
+export const infoPs2: InfoPlataforma = {
+  id: "ps2",
+  nome: "PlayStation 2",
+  sigla: "PS2",
+  arquivo: "ISO",
+  extensoes: ["iso"],
+  tem_ra: true,
+  escolhe_pasta: false,
+}
 
-/** Uma plataforma inventada para os testes de várias plataformas (o app ainda não instala PC). */
-export const infoPc: InfoPlataforma = { id: "pc", nome: "PC", sigla: "PC", arquivo: "pasta do jogo", extensoes: ["exe"], tem_ra: false }
+export const infoPc: InfoPlataforma = {
+  id: "pc",
+  nome: "PC",
+  sigla: "PC",
+  arquivo: "pasta do jogo",
+  extensoes: [],
+  tem_ra: false,
+  escolhe_pasta: true,
+}
 
 export const traducaoJak2: Traducao = {
   id: "jak2-usa-ptbr",
@@ -25,6 +40,8 @@ export const traducaoJak2: Traducao = {
   patch_disponivel: true,
   tamanho_download: null,
   trailer_youtube: null,
+  ra: "compativel",
+  contem_programa: false,
 }
 
 export function plataforma(info: InfoPlataforma, traducoes: Traducao[], capa: string | null = null): PlataformaDoJogo {
@@ -38,7 +55,14 @@ export function jogoPs2(extra: Partial<Traducao> = {}, base: Partial<Jogo> = {},
 
 /** Jak II no PS2 e no PC, cada um com a sua tradução. */
 export function jogoPs2ePc(): Jogo {
-  const pc: Traducao = { ...traducaoJak2, id: "jak2-pc-ptbr", versao: "2.0", detalhes: "versão Steam", instrucao: "Escolha a pasta do jogo." }
+  const pc: Traducao = {
+    ...traducaoJak2,
+    id: "jak2-pc-ptbr",
+    versao: "2.0",
+    detalhes: "versão Steam",
+    instrucao: "Escolha a pasta do jogo.",
+    ra: null,
+  }
   return { id: "jak2", nome: "Jak II", plataformas: [plataforma(infoPs2, [traducaoJak2]), plataforma(infoPc, [pc])] }
 }
 

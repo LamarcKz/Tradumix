@@ -8,6 +8,7 @@ mod erro;
 mod historico;
 mod instalar_pc;
 mod iso9660;
+pub mod lista;
 mod pacote;
 mod plataformas;
 mod processo;

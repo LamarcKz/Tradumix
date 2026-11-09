@@ -185,6 +185,15 @@ impl Alvo {
         }
     }
 
+    /// A cópia traduzida mantém o hash do RetroAchievements da original (`None` em plataforma sem RA).
+    pub fn ra_compativel(&self) -> Option<bool> {
+        match self {
+            Alvo::Ps2 { origem, resultado } => Some(origem.hash_ra.eq_ignore_ascii_case(&resultado.hash_ra)),
+            Alvo::Ps1 { origem, resultado } => Some(origem.hash_ra.eq_ignore_ascii_case(&resultado.hash_ra)),
+            Alvo::Pc { .. } => None,
+        }
+    }
+
     /// Hash do RetroAchievements do arquivo que o patch gerou (`None` em plataforma sem RA).
     pub fn verificar_resultado(&self, original: &Path, gerado: &Path) -> Result<Option<String>, Erro> {
         match self {

@@ -11,7 +11,6 @@ publish = false
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
 nucleo = { path = "../crates/nucleo" }
 rusqlite = { version = "0.40", features = ["bundled"] }

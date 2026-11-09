@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 
 import * as api from "../api"
-import type { Conferencia, Jogo } from "../tipos"
+import type { Conferencia, Jogo, Remocao, Traducao } from "../tipos"
 import { Caixa } from "./Caixa"
 import { FundoJogo } from "./FundoJogo"
 
@@ -43,6 +43,32 @@ export function tamanhoLegivel(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`
 }
 
+/** Selos da tradução: RetroAchievements (plataformas com RA) e "Contém programa". */
+function Selos({ traducao }: { traducao: Traducao }) {
+  if (!traducao.ra && !traducao.contem_programa) return null
+  return (
+    <p className="mt-3 flex flex-wrap gap-2 text-sm">
+      {traducao.ra === "compativel" && (
+        <span className="flex items-center gap-2 rounded-full bg-verde/15 px-3 py-1 font-semibold text-verde">
+          <span aria-hidden className="h-2 w-2 rounded-full bg-verde" />
+          Compatível com RetroAchievements
+        </span>
+      )}
+      {traducao.ra === "nao_reconhece" && (
+        <span className="rounded-full bg-erro/10 px-3 py-1 text-erro">O RetroAchievements não reconhece esta cópia</span>
+      )}
+      {traducao.contem_programa && (
+        <span
+          title="Esta tradução instala um programa (por exemplo, um carregador de mods) na pasta do jogo."
+          className="cursor-help rounded-full bg-superficie px-3 py-1"
+        >
+          Contém programa
+        </span>
+      )}
+    </p>
+  )
+}
+
 export function JogoTela({ jogo, plataformaInicial, aviso, offline = false, mostrarTrailers = true, pedidoAnterior, aoVoltar, aoTraduzir }: Props) {
   const [plataformaId, setPlataformaId] = useState(pedidoAnterior?.plataformaId ?? plataformaInicial ?? jogo.plataformas[0]?.info.id ?? "")
   const plataforma = jogo.plataformas.find((p) => p.info.id === plataformaId) ?? jogo.plataformas[0]
@@ -53,6 +79,9 @@ export function JogoTela({ jogo, plataformaInicial, aviso, offline = false, most
   const [saida, setSaida] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [conferindo, setConferindo] = useState(false)
+  const [remocao, setRemocao] = useState<Remocao | null>(null)
+  /** PC: a tradução vai para a própria pasta do jogo, sem cópia ao lado. */
+  const naPasta = plataforma.info.escolhe_pasta
   const traducao = plataforma.traducoes.find((t) => t.id === traducaoId) ?? plataforma.traducoes[0]
   const semInternet = offline && !traducao.patch_disponivel
   const temTrailer = mostrarTrailers && !offline && !!traducao.trailer_youtube
@@ -88,12 +117,14 @@ export function JogoTela({ jogo, plataformaInicial, aviso, offline = false, most
     setConferencia(null)
     setSaida(null)
     setErro(null)
+    setRemocao(null)
   }
 
   async function selecionarIso() {
     const escolhida = await api.escolherArquivoDoJogo(plataforma.info)
     if (!escolhida) return
     setErro(null)
+    setRemocao(null)
     setConferindo(true)
     try {
       const c = await api.conferirIso(traducao.id, escolhida)
@@ -115,6 +146,18 @@ export function JogoTela({ jogo, plataformaInicial, aviso, offline = false, most
     const existe = await api.arquivoExiste(nova)
     setSaida(nova)
     setConferencia({ ...conferencia, ja_existe: existe })
+  }
+
+  async function removerTraducao() {
+    const pasta = await api.escolherArquivoDoJogo(plataforma.info)
+    if (!pasta) return
+    setErro(null)
+    setRemocao(null)
+    try {
+      setRemocao(await api.removerTraducao(traducao.id, pasta))
+    } catch (e) {
+      setErro(String(e))
+    }
   }
 
   function traduzir(sobrescrever: boolean) {
@@ -163,6 +206,7 @@ export function JogoTela({ jogo, plataformaInicial, aviso, offline = false, most
             <p className="mt-3 text-suave">
               Tradução {traducao.idioma.toUpperCase()} versão {traducao.versao}, para a {traducao.detalhes}
             </p>
+            <Selos traducao={traducao} />
 
             {plataforma.traducoes.length > 1 && (
               <fieldset className="mt-6">
@@ -230,7 +274,7 @@ export function JogoTela({ jogo, plataformaInicial, aviso, offline = false, most
           </article>
 
           <aside className="rounded-lg border border-borda bg-superficie/90 p-6 backdrop-blur">
-            <h2 className="titulo text-2xl">Gerar a {arquivo} traduzida</h2>
+            <h2 className="titulo text-2xl">{naPasta ? "Instalar a tradução" : `Gerar a ${arquivo} traduzida`}</h2>
             <p className="mt-2 text-sm text-suave">{traducao.instrucao}</p>
 
             {semInternet ? (
@@ -260,8 +304,35 @@ export function JogoTela({ jogo, plataformaInicial, aviso, offline = false, most
                 {erro}
               </p>
             )}
+            {conferencia?.serve && conferencia.aviso && (
+              <p role="status" className="mt-4 rounded-md border border-borda p-3 text-sm text-suave">
+                {conferencia.aviso}
+              </p>
+            )}
+            {remocao && (
+              <div role="status" className="mt-4 rounded-md border border-borda p-3 text-sm">
+                <p>Tradução removida.</p>
+                {remocao.mantidos.length > 0 && <p className="mt-1 text-suave">Alguns arquivos foram atualizados pela loja e ficaram como estão.</p>}
+              </div>
+            )}
 
-            {conferencia?.serve && saida ? (
+            {naPasta && conferencia?.serve && iso ? (
+              <div className="mt-5 space-y-4">
+                <div>
+                  <p className="text-sm text-suave">Pasta do jogo</p>
+                  <p className="break-all text-sm">{iso}</p>
+                </div>
+                <button
+                  onClick={() => aoTraduzir({ pacoteId: traducao.id, plataformaId: plataforma.info.id, iso, saida: iso, sobrescrever: false })}
+                  className="w-full rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5]"
+                >
+                  Instalar tradução
+                </button>
+                <button onClick={selecionarIso} className="w-full text-sm text-suave hover:text-texto">
+                  Usar outra pasta
+                </button>
+              </div>
+            ) : conferencia?.serve && saida ? (
               <div className="mt-5 space-y-4">
                 <div>
                   <p className="text-sm text-suave">{arquivo} original</p>
@@ -302,7 +373,19 @@ export function JogoTela({ jogo, plataformaInicial, aviso, offline = false, most
                 disabled={conferindo || semInternet}
                 className="mt-5 w-full rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5] disabled:opacity-60"
               >
-                {conferindo ? `Conferindo a ${arquivo}…` : conferencia ? `Selecionar outra ${arquivo}` : `Selecionar ${arquivo}`}
+                {conferindo
+                  ? `Conferindo a ${arquivo}…`
+                  : naPasta
+                    ? "Escolher pasta do jogo"
+                    : conferencia
+                      ? `Selecionar outra ${arquivo}`
+                      : `Selecionar ${arquivo}`}
+              </button>
+            )}
+
+            {naPasta && (
+              <button onClick={() => void removerTraducao()} className="mt-4 w-full text-sm text-suave hover:text-texto">
+                Remover tradução
               </button>
             )}
           </aside>
