@@ -4,6 +4,7 @@
 //! Para acrescentar uma plataforma: criar o módulo dela, uma variante em `Plataforma` e em `Alvo`,
 //! e pôr a plataforma em `PLATAFORMAS`. Traduções de plataformas que não estão aqui ficam de fora.
 
+pub mod pc;
 pub mod ps1;
 pub mod ps2;
 
@@ -13,6 +14,7 @@ use serde::Serialize;
 
 use crate::{Erro, Ficha};
 
+pub use pc::{OrigemPc, ReferenciaPc};
 pub use ps1::{OrigemPs1, ResultadoPs1};
 pub use ps2::{OrigemPs2, ResultadoPs2};
 
@@ -20,10 +22,11 @@ pub use ps2::{OrigemPs2, ResultadoPs2};
 pub enum Plataforma {
     Ps2,
     Ps1,
+    Pc,
 }
 
 /// Todas as plataformas conhecidas, na ordem em que aparecem no app.
-pub const PLATAFORMAS: &[Plataforma] = &[Plataforma::Ps2, Plataforma::Ps1];
+pub const PLATAFORMAS: &[Plataforma] = &[Plataforma::Ps2, Plataforma::Ps1, Plataforma::Pc];
 
 /// O que a interface precisa saber de uma plataforma.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -39,6 +42,8 @@ pub struct InfoPlataforma {
     pub extensoes: &'static [&'static str],
     /// A plataforma tem RetroAchievements (o app confere o hash no fim).
     pub tem_ra: bool,
+    /// A pessoa escolhe uma pasta (o jogo instalado) em vez de um arquivo.
+    pub escolhe_pasta: bool,
 }
 
 impl Plataforma {
@@ -50,6 +55,7 @@ impl Plataforma {
         match self {
             Plataforma::Ps2 => ps2::INFO,
             Plataforma::Ps1 => ps1::INFO,
+            Plataforma::Pc => pc::INFO,
         }
     }
 
@@ -64,6 +70,7 @@ impl Plataforma {
 pub enum Alvo {
     Ps2 { origem: OrigemPs2, resultado: ResultadoPs2 },
     Ps1 { origem: OrigemPs1, resultado: ResultadoPs1 },
+    Pc { origem: OrigemPc },
 }
 
 /// Lê `origem` e `resultado` da ficha conforme a plataforma dela.
@@ -71,6 +78,7 @@ pub fn ler_alvo(ficha: &Ficha) -> Result<Alvo, String> {
     match Plataforma::de_id(&ficha.plataforma) {
         Some(Plataforma::Ps2) => ps2::ler(ficha),
         Some(Plataforma::Ps1) => ps1::ler(ficha),
+        Some(Plataforma::Pc) => pc::ler(ficha),
         None => Err(format!("plataforma desconhecida: {}", ficha.plataforma)),
     }
 }
@@ -90,6 +98,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { .. } => Plataforma::Ps2,
             Alvo::Ps1 { .. } => Plataforma::Ps1,
+            Alvo::Pc { .. } => Plataforma::Pc,
         }
     }
 
@@ -98,6 +107,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { origem, .. } => ps2::conferir(ficha, origem, arquivo),
             Alvo::Ps1 { origem, .. } => ps1::conferir(ficha, origem, arquivo),
+            Alvo::Pc { .. } => Err(Erro::Io("instalação de PC ainda não implementada".into())),
         }
     }
 
@@ -106,6 +116,8 @@ impl Alvo {
         match self {
             Alvo::Ps2 { origem, .. } => ps2::nome_saida(ficha, origem, original),
             Alvo::Ps1 { origem, .. } => ps1::nome_saida(ficha, origem, original),
+            // No PC a tradução vai para a própria pasta do jogo.
+            Alvo::Pc { .. } => original.to_path_buf(),
         }
     }
 
@@ -114,6 +126,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { .. } => Ok(vec![saida.to_path_buf()]),
             Alvo::Ps1 { .. } => ps1::arquivos_saida(original, saida),
+            Alvo::Pc { .. } => Err(sem_imagem()),
         }
     }
 
@@ -122,6 +135,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { .. } => Ok(original.to_path_buf()),
             Alvo::Ps1 { .. } => ps1::entrada_patch(original),
+            Alvo::Pc { .. } => Err(sem_imagem()),
         }
     }
 
@@ -130,6 +144,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { .. } => Ok(saida.to_path_buf()),
             Alvo::Ps1 { .. } => ps1::saida_patch(original, saida),
+            Alvo::Pc { .. } => Err(sem_imagem()),
         }
     }
 
@@ -138,6 +153,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { .. } => Ok(()),
             Alvo::Ps1 { .. } => ps1::completar_saida(original, saida),
+            Alvo::Pc { .. } => Err(sem_imagem()),
         }
     }
 
@@ -146,6 +162,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { .. } => 0,
             Alvo::Ps1 { .. } => ps1::tamanho_extra(original),
+            Alvo::Pc { .. } => 0,
         }
     }
 
@@ -154,6 +171,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { resultado, .. } => resultado.tamanho,
             Alvo::Ps1 { resultado, .. } => resultado.tamanho,
+            Alvo::Pc { .. } => 0,
         }
     }
 
@@ -162,6 +180,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { origem, .. } => Some(&origem.hash_ra),
             Alvo::Ps1 { origem, .. } => Some(&origem.hash_ra),
+            Alvo::Pc { .. } => None,
         }
     }
 
@@ -170,6 +189,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { .. } => Ok(Some(crate::identificar(gerado)?.hash_ra)),
             Alvo::Ps1 { .. } => ps1::verificar_resultado(original, gerado),
+            Alvo::Pc { .. } => Ok(None),
         }
     }
 
@@ -178,6 +198,8 @@ impl Alvo {
         let (acervo, serial) = match self {
             Alvo::Ps2 { origem, .. } => (ps2::ACERVO_CAPAS, &origem.serial),
             Alvo::Ps1 { origem, .. } => (ps1::ACERVO_CAPAS, &origem.serial),
+            // Não há um acervo de capas de PC por serial; a ficha traz a própria capa.
+            Alvo::Pc { .. } => return None,
         };
         Some(modelo.unwrap_or(acervo).replace("{serial}", serial))
     }
@@ -187,6 +209,7 @@ impl Alvo {
         match self {
             Alvo::Ps2 { origem, .. } => format!("versão {} ({})", origem.regiao.nome(), origem.serial),
             Alvo::Ps1 { origem, .. } => format!("versão {} ({})", origem.regiao.nome(), origem.serial),
+            Alvo::Pc { origem } => format!("versão {} ({})", origem.versao, origem.loja),
         }
     }
 
@@ -200,8 +223,17 @@ impl Alvo {
                 "Use o arquivo .cue da sua cópia original da versão {}, com os .bin na mesma pasta. Eles não são alterados: a cópia traduzida é gravada ao lado.",
                 origem.regiao.nome()
             ),
+            Alvo::Pc { origem } => format!(
+                "Escolha a pasta do jogo instalado ({}). Os arquivos trocados são guardados para você poder remover a tradução depois.",
+                origem.loja
+            ),
         }
     }
+}
+
+/// Erro para as operações de imagem pedidas numa plataforma que instala na pasta do jogo.
+fn sem_imagem() -> Erro {
+    Erro::Io("esta tradução é instalada na pasta do jogo, não numa imagem".into())
 }
 
 /// Tira o que o Windows não aceita num nome de arquivo (e qualquer separador de pasta):

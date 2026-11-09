@@ -1,0 +1,105 @@
+//! PC: a cópia da pessoa é a pasta do jogo instalado. A tradução é um `.zip` com arquivos que vão
+//! para dentro dessa pasta; os que já existem são guardados para "Remover tradução".
+
+use serde::{Deserialize, Serialize};
+
+use super::{Alvo, InfoPlataforma};
+use crate::{Ficha, Instalacao};
+
+pub(crate) const INFO: InfoPlataforma = InfoPlataforma {
+    id: "pc",
+    nome: "PC",
+    sigla: "PC",
+    arquivo: "pasta do jogo",
+    extensoes: &[],
+    tem_ra: false,
+    escolhe_pasta: true,
+};
+
+/// Um arquivo da pasta do jogo que identifica a versão testada.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReferenciaPc {
+    pub caminho: String,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OrigemPc {
+    /// Loja de onde vem a versão testada ("Steam", "GOG"…).
+    pub loja: String,
+    /// Versão do jogo testada, como a loja mostra.
+    pub versao: String,
+    pub referencias: Vec<ReferenciaPc>,
+}
+
+/// O resultado do PC não tem campos: a instalação é conferida arquivo por arquivo.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+struct ResultadoPc {}
+
+pub(crate) fn ler(ficha: &Ficha) -> Result<Alvo, String> {
+    let origem: OrigemPc = serde_json::from_value(ficha.origem.clone()).map_err(|e| format!("origem inválida: {e}"))?;
+    let _: ResultadoPc = serde_json::from_value(ficha.resultado.clone()).map_err(|e| format!("resultado inválido: {e}"))?;
+    if origem.referencias.is_empty() {
+        return Err("origem.referencias precisa ter ao menos um arquivo do jogo".into());
+    }
+    for r in &origem.referencias {
+        conferir_caminho(&r.caminho)?;
+        conferir_sha(&r.sha256, &r.caminho)?;
+    }
+    if let Instalacao::PastaDoJogo { arquivos, .. } = &ficha.instalacao {
+        if arquivos.is_empty() {
+            return Err("instalacao.arquivos está vazia".into());
+        }
+        for a in arquivos {
+            conferir_caminho(&a.caminho)?;
+            conferir_sha(&a.sha256, &a.caminho)?;
+        }
+    }
+    Ok(Alvo::Pc { origem })
+}
+
+fn conferir_sha(sha: &str, caminho: &str) -> Result<(), String> {
+    if sha.len() != 64 || !sha.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(format!("o sha256 de {caminho} deve ter 64 caracteres hexadecimais"));
+    }
+    Ok(())
+}
+
+/// Nomes que o Windows reserva, com ou sem extensão.
+const RESERVADOS: &[&str] = &[
+    "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4",
+    "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+];
+
+/// Um caminho relativo à pasta do jogo, com `/`, que não sai dela nem usa nome proibido no Windows.
+pub(crate) fn conferir_caminho(caminho: &str) -> Result<(), String> {
+    let ruim = |motivo: &str| Err(format!("caminho inválido ({motivo}): {caminho:?}"));
+    if caminho.is_empty() {
+        return ruim("vazio");
+    }
+    if caminho.contains('\\') {
+        return ruim("use / para separar pastas");
+    }
+    if caminho.starts_with('/') {
+        return ruim("tem de ser relativo à pasta do jogo");
+    }
+    for parte in caminho.split('/') {
+        if parte.is_empty() {
+            return ruim("pasta sem nome");
+        }
+        if parte == "." || parte == ".." {
+            return ruim("não pode usar . nem ..");
+        }
+        if parte.chars().any(|c| c.is_control() || ":*?\"<>|".contains(c)) {
+            return ruim("caractere proibido");
+        }
+        if parte.ends_with('.') || parte.ends_with(' ') {
+            return ruim("nome terminado em ponto ou espaço");
+        }
+        let base = parte.split('.').next().unwrap_or(parte).trim_end();
+        if RESERVADOS.iter().any(|r| base.eq_ignore_ascii_case(r)) {
+            return ruim("nome reservado do Windows");
+        }
+    }
+    Ok(())
+}

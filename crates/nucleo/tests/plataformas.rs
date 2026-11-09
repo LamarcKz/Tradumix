@@ -20,7 +20,7 @@ fn ps2_conhecida_e_info() {
     assert_eq!(info.arquivo, "ISO");
     assert_eq!(info.extensoes, &["iso"]);
     assert!(info.tem_ra);
-    assert_eq!(Plataforma::de_id("pc"), None);
+    assert_eq!(Plataforma::de_id("wii"), None);
 }
 
 #[test]
@@ -37,7 +37,7 @@ fn ler_alvo_ps2() {
 
 #[test]
 fn ler_alvo_plataforma_desconhecida() {
-    let erro = ler_alvo(&ficha(&jak2().replace(r#""plataforma":"ps2""#, r#""plataforma":"pc""#))).unwrap_err();
+    let erro = ler_alvo(&ficha(&jak2().replace(r#""plataforma":"ps2""#, r#""plataforma":"wii""#))).unwrap_err();
     assert!(erro.contains("plataforma desconhecida"), "{erro}");
 }
 
@@ -91,4 +91,32 @@ fn ficha_ps1_hash_curto() {
     let curto = &comum::HASH_RA[..31];
     let erro = ler_alvo(&ficha(&ps1().replacen(comum::HASH_RA, curto, 1))).unwrap_err();
     assert_eq!(erro, "origem.hash_ra deve ter 32 caracteres hexadecimais");
+}
+
+#[test]
+fn pc_conhecida_e_info() {
+    assert_eq!(Plataforma::de_id("pc"), Some(Plataforma::Pc));
+    let info = Plataforma::Pc.info();
+    assert_eq!(info.nome, "PC");
+    assert_eq!(info.sigla, "PC");
+    assert_eq!(info.arquivo, "pasta do jogo");
+    assert!(info.extensoes.is_empty());
+    assert!(!info.tem_ra);
+    assert!(info.escolhe_pasta);
+    assert!(!Plataforma::Ps2.info().escolhe_pasta);
+    assert!(!Plataforma::Ps1.info().escolhe_pasta);
+    assert!(Plataforma::Ps1.ordem() < Plataforma::Pc.ordem());
+}
+
+#[test]
+fn ficha_pc_lida() {
+    let alvo = ler_alvo(&ficha(&comum::ficha_pc_simples(&["mods/textos.sub"]))).unwrap();
+    let Alvo::Pc { origem } = &alvo else { panic!("esperava PC") };
+    assert_eq!(origem.loja, "Steam");
+    assert_eq!(origem.versao, "1.0.3");
+    assert_eq!(origem.referencias.len(), 1);
+    assert_eq!(alvo.plataforma(), Plataforma::Pc);
+    assert_eq!(alvo.hash_ra_esperado(), None);
+    assert_eq!(alvo.url_capa(None), None);
+    assert_eq!(alvo.detalhes(), "versão 1.0.3 (Steam)");
 }

@@ -31,8 +31,8 @@ fn le_indice_valido() {
     assert_eq!(i.atualizado, "2026-11-05");
     assert!(i.ignoradas.is_empty());
     let f = &i.traducoes[0];
-    assert_eq!(f.patch().url, URL);
-    assert_eq!(f.patch().tamanho, 238940);
+    assert_eq!(f.baixavel_principal().url, URL);
+    assert_eq!(f.baixavel_principal().tamanho, 238940);
     let imagens = f.imagens.as_ref().unwrap();
     assert!(imagens.capa.is_some() && imagens.fundo.is_none());
 }

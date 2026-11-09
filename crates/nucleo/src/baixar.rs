@@ -12,7 +12,7 @@ pub fn baixar_patch(rede: &dyn Rede, pacote: &Pacote, progresso: &mut dyn FnMut(
     if pacote.patch_disponivel() {
         return Ok(());
     }
-    let patch = pacote.ficha.patch();
+    let patch = pacote.ficha.baixavel_principal();
     let total = patch.tamanho.max(1) as f64;
     progresso(0.0);
     baixar_conferido(

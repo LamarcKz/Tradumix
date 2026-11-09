@@ -71,9 +71,9 @@ fn gravar_traducao(rede: &dyn Rede, ficha: &Ficha, pasta: &Path, capas: &Capas) 
     }
     // Versão com outro patch: o patch baixado antes não serve mais.
     let anterior: Option<Ficha> = fs::read_to_string(pasta.join("ficha.json")).ok().and_then(|t| serde_json::from_str(&t).ok());
-    let sha_antigo = anterior.as_ref().map(|f| f.patch().sha256.to_lowercase());
-    if sha_antigo.as_deref() != Some(ficha.patch().sha256.to_lowercase().as_str()) {
-        let _ = fs::remove_file(pasta.join(&ficha.patch().nome));
+    let sha_antigo = anterior.as_ref().map(|f| f.baixavel_principal().sha256.to_lowercase());
+    if sha_antigo.as_deref() != Some(ficha.baixavel_principal().sha256.to_lowercase().as_str()) {
+        let _ = fs::remove_file(pasta.join(&ficha.baixavel_principal().nome));
     }
     if let Ok(texto) = serde_json::to_string_pretty(ficha) {
         let _ = fs::write(pasta.join("ficha.json"), texto);

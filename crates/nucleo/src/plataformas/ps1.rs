@@ -18,6 +18,7 @@ pub(crate) const INFO: InfoPlataforma = InfoPlataforma {
     arquivo: "imagem (.cue)",
     extensoes: &["cue"],
     tem_ra: true,
+    escolhe_pasta: false,
 };
 
 /// Acervo público de capas de PS1 (o mesmo autor do acervo de PS2), endereçado pelo serial.

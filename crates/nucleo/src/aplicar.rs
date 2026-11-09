@@ -73,6 +73,7 @@ pub fn aplicar_com_rede(
 ) -> Result<Resultado, Erro> {
     match &pacote.ficha.instalacao {
         Instalacao::ImagemXdelta { .. } => instalar_imagem_xdelta(pacote, pedido, rede, progresso, cancelar),
+        Instalacao::PastaDoJogo { .. } => Err(Erro::Io("instalação de PC ainda não implementada".into())),
     }
 }
 

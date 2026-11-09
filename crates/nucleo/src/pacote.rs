@@ -43,6 +43,15 @@ pub struct ArquivoBaixavel {
     pub tamanho: u64,
 }
 
+/// Um arquivo que a tradução de PC põe na pasta do jogo.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArquivoDoPc {
+    /// Caminho relativo à pasta do jogo, com `/`.
+    pub caminho: String,
+    pub sha256: String,
+    pub tamanho: u64,
+}
+
 /// Como a tradução é instalada, com o que esse jeito precisa baixar.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "tipo")]
@@ -50,7 +59,13 @@ pub enum Instalacao {
     /// Aplica um `.xdelta` na imagem do jogo e grava a cópia traduzida ao lado da original.
     #[serde(rename = "imagem-xdelta")]
     ImagemXdelta { patch: ArquivoBaixavel },
+    /// Extrai um `.zip` na pasta do jogo instalado, guardando os originais que forem trocados.
+    #[serde(rename = "pasta-do-jogo")]
+    PastaDoJogo { pacote: ArquivoBaixavel, arquivos: Vec<ArquivoDoPc> },
 }
+
+/// Extensões de arquivo que contam como programa ("Contém programa").
+const EXTENSOES_DE_PROGRAMA: &[&str] = &["exe", "dll", "bat", "cmd", "ps1", "vbs", "js", "py", "msi", "scr", "com"];
 
 /// Capa e fundo próprios da tradução (por exemplo, arte do tradutor).
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -96,20 +111,28 @@ pub struct Ficha {
 impl Ficha {
     /// Todos os arquivos que a tradução manda baixar (instalação e imagens).
     pub fn arquivos(&self) -> Vec<&ArquivoBaixavel> {
-        let mut lista = match &self.instalacao {
-            Instalacao::ImagemXdelta { patch } => vec![patch],
-        };
+        let mut lista = vec![self.baixavel_principal()];
         if let Some(imagens) = &self.imagens {
             lista.extend(imagens.capa.iter().chain(imagens.fundo.iter()));
         }
         lista
     }
 
-    /// O patch do tipo `imagem-xdelta`.
-    pub fn patch(&self) -> &ArquivoBaixavel {
+    /// O que a instalação baixa: o patch (`imagem-xdelta`) ou o pacote (`pasta-do-jogo`).
+    pub fn baixavel_principal(&self) -> &ArquivoBaixavel {
         match &self.instalacao {
             Instalacao::ImagemXdelta { patch } => patch,
+            Instalacao::PastaDoJogo { pacote, .. } => pacote,
         }
+    }
+
+    /// A tradução põe na pasta do jogo algum arquivo que roda (`.exe`, `.dll`, script…).
+    pub fn contem_programa(&self) -> bool {
+        let Instalacao::PastaDoJogo { arquivos, .. } = &self.instalacao else { return false };
+        arquivos.iter().any(|a| {
+            let nome = a.caminho.rsplit('/').next().unwrap_or(&a.caminho);
+            nome.rsplit_once('.').is_some_and(|(_, ext)| EXTENSOES_DE_PROGRAMA.iter().any(|e| ext.eq_ignore_ascii_case(e)))
+        })
     }
 }
 
@@ -135,8 +158,9 @@ pub struct Pacote {
 }
 
 impl Pacote {
+    /// Onde fica o arquivo principal baixado (o patch ou o pacote de PC).
     pub fn patch(&self) -> PathBuf {
-        self.pasta.join(&self.ficha.patch().nome)
+        self.pasta.join(&self.ficha.baixavel_principal().nome)
     }
 
     /// O patch já foi baixado para a pasta.
@@ -230,6 +254,10 @@ pub(crate) fn validar_ficha(ficha: &Ficha) -> Result<Alvo, String> {
         return Err(format!("o id {} não pode ter barras, ':' nem começar com ponto", ficha.id));
     }
     let alvo = ler_alvo(ficha)?;
+    let pasta_do_jogo = matches!(ficha.instalacao, Instalacao::PastaDoJogo { .. });
+    if pasta_do_jogo != alvo.plataforma().info().escolhe_pasta {
+        return Err("o tipo de instalação não combina com a plataforma".into());
+    }
     if let Some(id) = ficha.midia.as_ref().and_then(|m| m.trailer_youtube.as_ref()) {
         if id.len() != 11 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
             return Err(format!("trailer_youtube deve ser o id do vídeo (11 caracteres), não {id}"));

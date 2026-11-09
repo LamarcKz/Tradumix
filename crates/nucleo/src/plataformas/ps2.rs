@@ -15,6 +15,7 @@ pub(crate) const INFO: InfoPlataforma = InfoPlataforma {
     arquivo: "ISO",
     extensoes: &["iso"],
     tem_ra: true,
+    escolhe_pasta: false,
 };
 
 /// Acervo público de capas de PS2 usado pelo PCSX2, endereçado pelo serial do jogo.

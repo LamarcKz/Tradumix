@@ -204,3 +204,34 @@ pub fn exe_psx(corpo: usize, semente: u8) -> Vec<u8> {
     }
     b
 }
+
+pub const SHA_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+/// Ficha formato 2 de um jogo de PC (`pasta-do-jogo`). `arquivos` e `referencias` são listas JSON
+/// (`[{"caminho":…,"sha256":…,"tamanho":…}]` e `[{"caminho":…,"sha256":…}]`).
+pub fn ficha_pc(id: &str, versao: &str, pacote_sha: &str, pacote_tamanho: u64, arquivos: &str, referencias: &str) -> String {
+    format!(
+        r#"{{"formato":2,"id":"{id}","jogo":{{"id":"jogo-pc","nome":"Jogo de PC"}},"plataforma":"pc",
+        "instalacao":{{"tipo":"pasta-do-jogo","pacote":{{"nome":"pacote.zip","url":"https://x/pacote.zip","sha256":"{pacote_sha}","tamanho":{pacote_tamanho}}},
+        "arquivos":{arquivos}}},
+        "versao":"{versao}","estado":"rascunho","idioma":"pt-BR","data":"2026-11-08",
+        "origem":{{"loja":"Steam","versao":"1.0.3","referencias":{referencias}}},
+        "resultado":{{}},"tradutores":[{{"nome":"Fulano"}}]}}"#
+    )
+}
+
+/// `ficha_pc` com um arquivo por caminho dado e uma referência `jogo.exe`.
+pub fn ficha_pc_simples(caminhos: &[&str]) -> String {
+    let arquivos: Vec<String> = caminhos
+        .iter()
+        .map(|c| format!(r#"{{"caminho":{},"sha256":"{SHA_A}","tamanho":3}}"#, serde_json::to_string(c).unwrap()))
+        .collect();
+    ficha_pc(
+        "jogo-pc-ptbr",
+        "1.0",
+        SHA_A,
+        100,
+        &format!("[{}]", arquivos.join(",")),
+        &format!(r#"[{{"caminho":"jogo.exe","sha256":"{SHA_A}"}}]"#),
+    )
+}

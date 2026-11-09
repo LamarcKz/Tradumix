@@ -88,7 +88,7 @@ fn instalacao_desconhecida_e_invalida() {
 #[test]
 fn plataforma_desconhecida_e_invalida() {
     let raiz = tempfile::tempdir().unwrap();
-    criar_pacote(raiz.path(), "p", &ficha_json("x", HASH).replace(r#""plataforma":"ps2""#, r#""plataforma":"pc""#), true);
+    criar_pacote(raiz.path(), "p", &ficha_json("x", HASH).replace(r#""plataforma":"ps2""#, r#""plataforma":"wii""#), true);
     let carga = carregar_pacotes(raiz.path());
     assert!(carga.pacotes.is_empty());
     assert!(carga.invalidos[0].motivo.contains("plataforma desconhecida"));
@@ -200,4 +200,91 @@ fn versoes() {
     assert_eq!(comparar_versoes("1.9", "1.10"), Ordering::Less);
     assert_eq!(comparar_versoes("1.0", "1.0"), Ordering::Equal);
     assert_eq!(comparar_versoes("2", "1.9"), Ordering::Greater);
+}
+
+fn motivo_de(ficha: &str) -> String {
+    let i = nucleo::ler_indice(std::str::from_utf8(&comum::indice(&[ficha.to_string()])).unwrap(), false).unwrap();
+    assert!(i.traducoes.is_empty(), "a ficha devia ficar de fora");
+    i.ignoradas.join(" | ")
+}
+
+#[test]
+fn ficha_pc_lida_sem_programa() {
+    let raiz = tempfile::tempdir().unwrap();
+    criar_pacote(raiz.path(), "pc", &comum::ficha_pc_simples(&["mods/textos.sub", "dados/menu.txt"]), false);
+    let carga = carregar_pacotes(raiz.path());
+    assert!(carga.invalidos.is_empty(), "{:?}", carga.invalidos);
+    let f = &carga.pacotes[0].ficha;
+    assert!(!f.contem_programa());
+    assert_eq!(f.baixavel_principal().nome, "pacote.zip");
+    assert_eq!(carga.pacotes[0].patch(), raiz.path().join("pc").join("pacote.zip"));
+}
+
+#[test]
+fn ficha_pc_com_dll() {
+    let ficha: nucleo::Ficha = serde_json::from_str(&comum::ficha_pc_simples(&["mods/carregador.DLL"])).unwrap();
+    assert!(ficha.contem_programa());
+    for ext in ["exe", "bat", "cmd", "ps1", "vbs", "js", "py", "msi", "scr", "com"] {
+        let f: nucleo::Ficha = serde_json::from_str(&comum::ficha_pc_simples(&[&format!("a/b.{ext}")])).unwrap();
+        assert!(f.contem_programa(), "{ext}");
+    }
+    let ps2: nucleo::Ficha = serde_json::from_str(&ficha_json("a", HASH)).unwrap();
+    assert!(!ps2.contem_programa());
+}
+
+#[test]
+fn ficha_pc_caminho_ruim() {
+    for ruim in ["../x.txt", "a/../../x", "C:/x", "/x", r"\\servidor\x", r"a\b.txt","a//b", "CON.txt", "a/nul", "x?.txt", "a/com1", "lpt9.log", "a/b:c", "a/.", ""] {
+        let motivo = motivo_de(&comum::ficha_pc_simples(&[ruim]));
+        assert!(motivo.contains("caminho"), "{ruim}: {motivo}");
+    }
+}
+
+#[test]
+fn ficha_pc_referencia_com_caminho_ruim() {
+    let ficha = comum::ficha_pc_simples(&["a.txt"]).replace(r#""caminho":"jogo.exe""#, r#""caminho":"../jogo.exe""#);
+    assert!(motivo_de(&ficha).contains("caminho"));
+}
+
+#[test]
+fn ficha_pc_aceita_nomes_parecidos_com_reservados() {
+    let ficha: nucleo::Ficha = serde_json::from_str(&comum::ficha_pc_simples(&["console.txt", "a/com10.txt", "nulo/auxiliar.dat"])).unwrap();
+    assert!(nucleo::ler_alvo(&ficha).is_ok());
+}
+
+#[test]
+fn ficha_pc_sem_referencias() {
+    let ficha = comum::ficha_pc("x", "1.0", comum::SHA_A, 1, &format!(r#"[{{"caminho":"a.txt","sha256":"{}","tamanho":1}}]"#, comum::SHA_A), "[]");
+    assert!(motivo_de(&ficha).contains("referencias"));
+}
+
+#[test]
+fn ficha_pc_sha_ruim() {
+    let ficha = comum::ficha_pc("x", "1.0", comum::SHA_A, 1, r#"[{"caminho":"a.txt","sha256":"123","tamanho":1}]"#, &format!(r#"[{{"caminho":"j.exe","sha256":"{}"}}]"#, comum::SHA_A));
+    assert!(motivo_de(&ficha).contains("sha256"));
+}
+
+#[test]
+fn ficha_ps2_com_pasta_do_jogo() {
+    let ficha = comum::ficha_pc_simples(&["a.txt"])
+        .replace(r#""plataforma":"pc""#, r#""plataforma":"ps2""#)
+        .replace(r#""origem":{"loja":"Steam","versao":"1.0.3","referencias":"#, r#""origem_pc":{"x":"#)
+        .replace(r#""resultado":{}"#, &format!(r#""origem":{{"serial":"SCUS-97265","regiao":"usa","hash_ra":"{HASH}","tamanho":1}},"resultado":{{"hash_ra":"{HASH}","tamanho":1}}"#));
+    assert!(motivo_de(&ficha).contains("tipo de instalação não combina com a plataforma"), "{}", motivo_de(&ficha));
+}
+
+#[test]
+fn ficha_pc_com_imagem_xdelta() {
+    let ficha = comum::ficha_pc_simples(&["a.txt"]).replace(
+        r#""tipo":"pasta-do-jogo","pacote":"#,
+        r#""tipo":"imagem-xdelta","patch":"#,
+    );
+    assert!(motivo_de(&ficha).contains("tipo de instalação não combina com a plataforma"), "{}", motivo_de(&ficha));
+}
+
+#[test]
+fn ficha_ps2_antiga_igual() {
+    let ficha: nucleo::Ficha = serde_json::from_str(&ficha_json("jak2", HASH)).unwrap();
+    assert_eq!(ficha.baixavel_principal().nome, "patch.xdelta");
+    assert_eq!(ficha.baixavel_principal().tamanho, 238_940);
 }

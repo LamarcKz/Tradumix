@@ -24,10 +24,10 @@ pub use processo::GrupoDeProcessos;
 pub use cue::{Cue, Faixa, TipoFaixa, escrever_cue, ler_cue};
 pub use iso9660::{Iso, Setores};
 pub use pacote::{
-    ArquivoBaixavel, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Imagens, Instalacao, Jogo, Midia, NOME_CAPA_ACERVO, Pacote, PacoteInvalido,
+    ArquivoBaixavel, ArquivoDoPc, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Imagens, Instalacao, Jogo, Midia, NOME_CAPA_ACERVO, Pacote, PacoteInvalido,
     Tradutor, carregar_pacotes, comparar_versoes, e_novo,
 };
-pub use plataformas::{Alvo, InfoPlataforma, OrigemPs1, OrigemPs2, PLATAFORMAS, Plataforma, ResultadoPs1, ResultadoPs2, ler_alvo};
+pub use plataformas::{Alvo, InfoPlataforma, OrigemPc, OrigemPs1, OrigemPs2, PLATAFORMAS, Plataforma, ReferenciaPc, ResultadoPs1, ResultadoPs2, ler_alvo};
 pub use rede::{Rede, RedeUreq};
 pub use sincronizar::{Capas, Sincronizacao, sincronizar};
 pub use ps1::{IdentidadePs1, hash_ra_ps1, identificar_bin_ps1, identificar_ps1};

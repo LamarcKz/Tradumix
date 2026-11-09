@@ -251,7 +251,7 @@ fn traducao_dto(p: &Pacote, hoje: &str) -> TraducaoDto {
         fundo: p.imagem(Imagem::Fundo).and_then(|c| data_url(&c)),
         novo: nucleo::e_novo(f, hoje),
         patch_disponivel: disponivel,
-        tamanho_download: if disponivel { None } else { Some(f.patch().tamanho) },
+        tamanho_download: if disponivel { None } else { Some(f.baixavel_principal().tamanho) },
         trailer_youtube: f.midia.as_ref().and_then(|m| m.trailer_youtube.clone()),
     }
 }
