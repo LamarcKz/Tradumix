@@ -47,3 +47,36 @@ fn informa_o_tamanho_do_arquivo() {
     let (_p, iso) = abrir(&[("SYSTEM.CNF", CNF)]);
     assert_eq!(iso.tamanho(), 20 * 2048);
 }
+
+#[test]
+fn iso_dentro_de_bin_mode2() {
+    use nucleo::Setores;
+    let pasta = tempfile::tempdir().unwrap();
+    let bin = comum::bin_de_iso(&comum::iso_sintetica(&[("SYSTEM.CNF", CNF), ("DATA/A.BIN", b"conteudo")]), 24);
+    let caminho = comum::gravar(pasta.path(), "jogo.bin", &bin);
+    let mut iso = Iso::abrir_com(&caminho, Setores::Bin { tamanho: 2352, dados: 24 }).unwrap();
+    assert_eq!(iso.ler_arquivo("SYSTEM.CNF").unwrap(), CNF);
+    assert_eq!(iso.ler_arquivo("DATA/A.BIN").unwrap(), b"conteudo");
+    assert_eq!(iso.tamanho(), bin.len() as u64);
+}
+
+#[test]
+fn iso_dentro_de_bin_mode1() {
+    use nucleo::{Setores, TipoFaixa};
+    let pasta = tempfile::tempdir().unwrap();
+    let bin = comum::bin_de_iso(&comum::iso_sintetica(&[("SYSTEM.CNF", CNF)]), 16);
+    let caminho = comum::gravar(pasta.path(), "jogo.bin", &bin);
+    let mut iso = Iso::abrir_com(&caminho, Setores::do_tipo(TipoFaixa::Mode1_2352)).unwrap();
+    assert_eq!(iso.ler_arquivo("SYSTEM.CNF").unwrap(), CNF);
+}
+
+#[test]
+fn arquivo_que_atravessa_setores_no_bin() {
+    use nucleo::Setores;
+    let pasta = tempfile::tempdir().unwrap();
+    let grande: Vec<u8> = (0..5000u32).map(|i| (i % 251) as u8).collect();
+    let bin = comum::bin_de_iso(&comum::iso_sintetica(&[("SYSTEM.CNF", CNF), ("G.BIN", &grande)]), 24);
+    let caminho = comum::gravar(pasta.path(), "jogo.bin", &bin);
+    let mut iso = Iso::abrir_com(&caminho, Setores::Bin { tamanho: 2352, dados: 24 }).unwrap();
+    assert_eq!(iso.ler_arquivo("G.BIN").unwrap(), grande);
+}

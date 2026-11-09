@@ -42,6 +42,8 @@ pub enum Erro {
     DownloadInvalido(String),
     #[error("precisa de internet para baixar o patch")]
     PrecisaInternet,
+    #[error(".cue inválido: {0}")]
+    CueInvalido(String),
 }
 
 impl Erro {
@@ -77,6 +79,7 @@ impl Erro {
             Erro::Rede(m) => format!("Não foi possível baixar da internet. Confira a conexão e tente de novo. Detalhe: {m}"),
             Erro::DownloadInvalido(m) => format!("O arquivo baixado veio diferente do esperado e foi descartado. Tente de novo. Detalhe: {m}"),
             Erro::PrecisaInternet => "Precisa de internet para baixar a tradução.".into(),
+            Erro::CueInvalido(detalhe) => format!("O arquivo .cue não pôde ser lido: {detalhe}"),
             Erro::JaTraduzida => {
                 "Esta ISO já está com esta tradução. Para gerar de novo, selecione a ISO original, sem tradução.".into()
             }

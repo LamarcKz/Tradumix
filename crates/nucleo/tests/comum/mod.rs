@@ -159,3 +159,16 @@ pub fn gravar(pasta: &std::path::Path, nome: &str, bytes: &[u8]) -> std::path::P
     std::fs::write(&caminho, bytes).unwrap();
     caminho
 }
+
+/// Espalha cada setor de 2048 bytes de uma ISO em setores de 2352 bytes de um `.bin`, com
+/// `cabecalho` bytes antes dos dados (16 no MODE1, 24 no MODE2) e o resto do setor de rodapé.
+pub fn bin_de_iso(iso: &[u8], cabecalho: usize) -> Vec<u8> {
+    let mut bin = Vec::with_capacity(iso.len() / SETOR * 2352);
+    for setor in iso.chunks(SETOR) {
+        let mut bruto = vec![0xAAu8; 2352];
+        bruto[..12].copy_from_slice(&[0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0]);
+        bruto[cabecalho..cabecalho + setor.len()].copy_from_slice(setor);
+        bin.extend(bruto);
+    }
+    bin
+}

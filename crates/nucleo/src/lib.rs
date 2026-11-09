@@ -3,6 +3,7 @@
 mod aplicar;
 mod baixar;
 mod catalogo;
+mod cue;
 mod erro;
 mod historico;
 mod iso9660;
@@ -19,7 +20,8 @@ pub use catalogo::{FORMATO_INDICE, Indice, ler_indice};
 pub use erro::Erro;
 pub use historico::{Atualizacao, Entrada, Historico};
 pub use processo::GrupoDeProcessos;
-pub use iso9660::Iso;
+pub use cue::{Cue, Faixa, TipoFaixa, escrever_cue, ler_cue};
+pub use iso9660::{Iso, Setores};
 pub use pacote::{
     ArquivoBaixavel, CargaPacotes, Estado, FORMATO_FICHA, Ficha, Imagem, Imagens, Instalacao, Jogo, Midia, NOME_CAPA_ACERVO, Pacote, PacoteInvalido,
     Tradutor, carregar_pacotes, comparar_versoes, e_novo,

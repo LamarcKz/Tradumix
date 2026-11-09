@@ -5,27 +5,61 @@ use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
 use crate::Erro;
+use crate::cue::TipoFaixa;
 
 const SETOR: u64 = 2048;
+
+/// Como os setores lógicos de 2048 bytes estão gravados no arquivo.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Setores {
+    /// ISO comum: cada setor tem só os 2048 bytes de dados.
+    Iso2048,
+    /// Imagem de CD em `.bin`: setores de `tamanho` bytes com os dados a partir de `dados`.
+    Bin { tamanho: u64, dados: u64 },
+}
+
+impl Setores {
+    pub fn do_tipo(tipo: TipoFaixa) -> Setores {
+        match tipo {
+            TipoFaixa::Mode1_2352 => Setores::Bin { tamanho: 2352, dados: 16 },
+            // Faixa de áudio não tem sistema de arquivos; a leitura falha como ISO inválida.
+            TipoFaixa::Mode2_2352 | TipoFaixa::Audio => Setores::Bin { tamanho: 2352, dados: 24 },
+        }
+    }
+}
 
 /// Uma ISO aberta só para leitura.
 pub struct Iso {
     arquivo: File,
     tamanho: u64,
+    setores: Setores,
     raiz: (u32, u32),
 }
 
 impl Iso {
     pub fn abrir(caminho: &Path) -> Result<Iso, Erro> {
+        Iso::abrir_com(caminho, Setores::Iso2048)
+    }
+
+    pub fn abrir_com(caminho: &Path, setores: Setores) -> Result<Iso, Erro> {
         let arquivo = File::open(caminho)?;
         let tamanho = arquivo.metadata()?.len();
-        let mut iso = Iso { arquivo, tamanho, raiz: (0, 0) };
+        let mut iso = Iso { arquivo, tamanho, setores, raiz: (0, 0) };
         iso.raiz = iso.achar_raiz()?;
         Ok(iso)
     }
 
+    /// Tamanho do arquivo no disco.
     pub fn tamanho(&self) -> u64 {
         self.tamanho
+    }
+
+    /// Bytes de dados lógicos (setores de 2048) que cabem no arquivo.
+    fn tamanho_logico(&self) -> u64 {
+        match self.setores {
+            Setores::Iso2048 => self.tamanho,
+            Setores::Bin { tamanho, .. } => self.tamanho / tamanho * SETOR,
+        }
     }
 
     /// Lê um arquivo pelo caminho dentro da ISO (`SYSTEM.CNF`, `PASTA/ARQ.BIN`).
@@ -62,7 +96,7 @@ impl Iso {
     fn achar_raiz(&mut self) -> Result<(u32, u32), Erro> {
         let mut setor = [0u8; SETOR as usize];
         for n in 16..64u64 {
-            if (n + 1) * SETOR > self.tamanho {
+            if (n + 1) * SETOR > self.tamanho_logico() {
                 break;
             }
             self.ler(n * SETOR, &mut setor)?;
@@ -107,12 +141,28 @@ impl Iso {
         Ok(None)
     }
 
+    /// Lê `dest.len()` bytes a partir da posição lógica `pos` (setor × 2048 + deslocamento).
     fn ler(&mut self, pos: u64, dest: &mut [u8]) -> Result<(), Erro> {
-        if pos + dest.len() as u64 > self.tamanho {
+        if pos + dest.len() as u64 > self.tamanho_logico() {
             return Err(Erro::IsoInvalida);
         }
-        self.arquivo.seek(SeekFrom::Start(pos))?;
-        self.arquivo.read_exact(dest)?;
+        match self.setores {
+            Setores::Iso2048 => {
+                self.arquivo.seek(SeekFrom::Start(pos))?;
+                self.arquivo.read_exact(dest)?;
+            }
+            Setores::Bin { tamanho, dados } => {
+                let mut feito = 0usize;
+                while feito < dest.len() {
+                    let logico = pos + feito as u64;
+                    let (setor, dentro) = (logico / SETOR, logico % SETOR);
+                    let pedaco = ((SETOR - dentro) as usize).min(dest.len() - feito);
+                    self.arquivo.seek(SeekFrom::Start(setor * tamanho + dados + dentro))?;
+                    self.arquivo.read_exact(&mut dest[feito..feito + pedaco])?;
+                    feito += pedaco;
+                }
+            }
+        }
         Ok(())
     }
 }
