@@ -4,6 +4,7 @@ import * as api from "./api"
 import { BotoesJanela } from "./marca/BotoesJanela"
 import { Logo } from "./marca/Logo"
 import { MarcaDev } from "./marca/MarcaDev"
+import { MarcaPrevia } from "./marca/MarcaPrevia"
 import { AvisoVersao } from "./telas/AvisoVersao"
 import { Configuracoes } from "./telas/Configuracoes"
 import { Sobre } from "./telas/Sobre"
@@ -125,6 +126,7 @@ export default function App() {
         <BotoesJanela />
       </header>
 
+      <MarcaPrevia />
       <AvisoVersao />
 
       {erro && (

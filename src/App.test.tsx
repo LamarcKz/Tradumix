@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
 import * as api from "./api"
 import App from "./App"
@@ -139,4 +139,18 @@ it("volta_do_erro_na_mesma_plataforma", async () => {
   expect(screen.getByRole("tab", { name: "PC" })).toHaveAttribute("aria-selected", "true")
   expect(screen.getByText("C:/jogos/jak2")).toBeInTheDocument()
   expect(falso.traduzir).toHaveBeenCalledWith("jak2-pc-ptbr", "C:/jogos/jak2", "C:/jogos/jak2", false)
+})
+
+afterEach(() => vi.unstubAllEnvs())
+
+it("app_mostra_a_marca_da_previa_no_modo_previa", async () => {
+  vi.stubEnv("MODE", "previa")
+  render(<App />)
+  expect(await screen.findByText("Prévia: é assim que a tradução vai aparecer no Tradumix")).toBeInTheDocument()
+})
+
+it("app_sem_marca_da_previa_no_modo_normal", async () => {
+  render(<App />)
+  expect(await screen.findByRole("button", { name: /Abrir Jak II/ })).toBeInTheDocument()
+  expect(screen.queryByText(/Prévia:/)).not.toBeInTheDocument()
 })
