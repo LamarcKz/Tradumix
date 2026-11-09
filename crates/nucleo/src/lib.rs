@@ -10,6 +10,7 @@ mod iso9660;
 mod pacote;
 mod plataformas;
 mod processo;
+mod ps1;
 mod ps2;
 mod rede;
 mod sincronizar;
@@ -29,4 +30,5 @@ pub use pacote::{
 pub use plataformas::{Alvo, InfoPlataforma, OrigemPs2, PLATAFORMAS, Plataforma, ResultadoPs2, ler_alvo};
 pub use rede::{Rede, RedeUreq};
 pub use sincronizar::{Capas, Sincronizacao, sincronizar};
+pub use ps1::{IdentidadePs1, hash_ra_ps1, identificar_bin_ps1, identificar_ps1};
 pub use ps2::{IdentidadePs2, Regiao, hash_ra, identificar, regiao_do_serial, serial_do_executavel};

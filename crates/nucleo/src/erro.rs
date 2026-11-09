@@ -44,6 +44,8 @@ pub enum Erro {
     PrecisaInternet,
     #[error(".cue inválido: {0}")]
     CueInvalido(String),
+    #[error("o arquivo não é de um jogo de PS1")]
+    NaoEPs1,
 }
 
 impl Erro {
@@ -80,6 +82,7 @@ impl Erro {
             Erro::DownloadInvalido(m) => format!("O arquivo baixado veio diferente do esperado e foi descartado. Tente de novo. Detalhe: {m}"),
             Erro::PrecisaInternet => "Precisa de internet para baixar a tradução.".into(),
             Erro::CueInvalido(detalhe) => format!("O arquivo .cue não pôde ser lido: {detalhe}"),
+            Erro::NaoEPs1 => "Este arquivo não parece ser de um jogo de PlayStation.".into(),
             Erro::JaTraduzida => {
                 "Esta ISO já está com esta tradução. Para gerar de novo, selecione a ISO original, sem tradução.".into()
             }

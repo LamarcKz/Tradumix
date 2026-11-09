@@ -65,6 +65,23 @@ impl Iso {
     /// Lê um arquivo pelo caminho dentro da ISO (`SYSTEM.CNF`, `PASTA/ARQ.BIN`).
     /// Não diferencia maiúsculas e aceita ou não o sufixo `;1`.
     pub fn ler_arquivo(&mut self, caminho: &str) -> Result<Vec<u8>, Erro> {
+        self.ler_a_partir_de(caminho, 0)
+    }
+
+    /// Como `ler_arquivo`, mas lê pelo menos `minimo` bytes a partir do início do arquivo,
+    /// seguindo pelos setores de depois dele (como o rcheevos faz com o executável do PS1).
+    /// Para no fim da imagem.
+    pub(crate) fn ler_a_partir_de(&mut self, caminho: &str, minimo: u64) -> Result<Vec<u8>, Erro> {
+        let (setor, tamanho) = self.localizar(caminho)?;
+        let inicio = setor as u64 * SETOR;
+        let quanto = (tamanho as u64).max(minimo.min(self.tamanho_logico().saturating_sub(inicio)));
+        let mut dados = vec![0u8; quanto as usize];
+        self.ler(inicio, &mut dados)?;
+        Ok(dados)
+    }
+
+    /// Setor inicial e tamanho de um arquivo.
+    fn localizar(&mut self, caminho: &str) -> Result<(u32, u32), Erro> {
         let partes: Vec<&str> = caminho
             .split(['/', '\\'])
             .filter(|p| !p.is_empty())
@@ -81,9 +98,7 @@ impl Iso {
                 if pasta {
                     return Err(nao_achou());
                 }
-                let mut dados = vec![0u8; tamanho as usize];
-                self.ler(setor as u64 * SETOR, &mut dados)?;
-                return Ok(dados);
+                return Ok((setor, tamanho));
             }
             if !pasta {
                 return Err(nao_achou());
