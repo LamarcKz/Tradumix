@@ -102,12 +102,13 @@ impl Alvo {
         }
     }
 
-    /// Confere, sem ler tudo, se o arquivo escolhido é a cópia que a tradução espera.
-    pub fn conferir(&self, ficha: &Ficha, arquivo: &Path) -> Result<(), Erro> {
+    /// Confere, sem ler tudo, se o arquivo escolhido é a cópia que a tradução espera. `Ok(Some)`
+    /// traz um aviso que não impede a instalação (PC com versão do jogo diferente da testada).
+    pub fn conferir(&self, ficha: &Ficha, arquivo: &Path) -> Result<Option<String>, Erro> {
         match self {
-            Alvo::Ps2 { origem, .. } => ps2::conferir(ficha, origem, arquivo),
-            Alvo::Ps1 { origem, .. } => ps1::conferir(ficha, origem, arquivo),
-            Alvo::Pc { .. } => Err(Erro::Io("instalação de PC ainda não implementada".into())),
+            Alvo::Ps2 { origem, .. } => ps2::conferir(ficha, origem, arquivo).map(|()| None),
+            Alvo::Ps1 { origem, .. } => ps1::conferir(ficha, origem, arquivo).map(|()| None),
+            Alvo::Pc { origem } => pc::conferir(ficha, origem, arquivo),
         }
     }
 

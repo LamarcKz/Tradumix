@@ -49,7 +49,8 @@ pub fn nome_saida(pacote: &Pacote, original: &Path) -> PathBuf {
 }
 
 /// Confere se o arquivo escolhido é a cópia que a tradução espera, sem lê-lo inteiro.
-pub fn conferir(pacote: &Pacote, original: &Path) -> Result<(), Erro> {
+/// `Ok(Some(aviso))`: serve, mas com um aviso para mostrar (PC com outra versão do jogo).
+pub fn conferir(pacote: &Pacote, original: &Path) -> Result<Option<String>, Erro> {
     pacote.alvo.conferir(&pacote.ficha, original)
 }
 
@@ -73,8 +74,30 @@ pub fn aplicar_com_rede(
 ) -> Result<Resultado, Erro> {
     match &pacote.ficha.instalacao {
         Instalacao::ImagemXdelta { .. } => instalar_imagem_xdelta(pacote, pedido, rede, progresso, cancelar),
-        Instalacao::PastaDoJogo { .. } => Err(Erro::Io("instalação de PC ainda não implementada".into())),
+        Instalacao::PastaDoJogo { .. } => instalar_pasta_do_jogo(pacote, pedido, rede, progresso, cancelar),
     }
+}
+
+/// `pasta-do-jogo`: confere a pasta, baixa o pacote se precisar e instala (a saída é a própria pasta).
+fn instalar_pasta_do_jogo(
+    pacote: &Pacote,
+    pedido: &Pedido,
+    rede: Option<&dyn Rede>,
+    progresso: &mut dyn FnMut(Etapa, f32),
+    cancelar: &AtomicBool,
+) -> Result<Resultado, Erro> {
+    let inicio = Instant::now();
+    let pasta = &pedido.iso_original;
+    progresso(Etapa::Conferindo, 0.0);
+    conferir(pacote, pasta)?;
+    progresso(Etapa::Conferindo, 1.0);
+    if !pacote.patch_disponivel() {
+        let rede = rede.ok_or(Erro::PrecisaInternet)?;
+        progresso(Etapa::Baixando, 0.0);
+        crate::baixar_patch(rede, pacote, &mut |f| progresso(Etapa::Baixando, f), cancelar)?;
+    }
+    crate::instalar_pc::instalar_pc(pacote, pasta, progresso, cancelar)?;
+    Ok(Resultado { saida: pasta.clone(), hash_ra: None, compativel_ra: None, segundos: inicio.elapsed().as_secs_f64() })
 }
 
 /// `imagem-xdelta`: confere a original, baixa o patch se precisar, gera a cópia traduzida ao lado

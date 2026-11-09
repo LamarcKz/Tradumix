@@ -1,10 +1,14 @@
 //! PC: a cópia da pessoa é a pasta do jogo instalado. A tradução é um `.zip` com arquivos que vão
 //! para dentro dessa pasta; os que já existem são guardados para "Remover tradução".
 
+use std::path::Path;
+
 use serde::{Deserialize, Serialize};
 
 use super::{Alvo, InfoPlataforma};
-use crate::{Ficha, Instalacao};
+use crate::instalar_pc::no_jogo;
+use crate::rede::sha256_arquivo;
+use crate::{Erro, Ficha, Instalacao};
 
 pub(crate) const INFO: InfoPlataforma = InfoPlataforma {
     id: "pc",
@@ -56,6 +60,36 @@ pub(crate) fn ler(ficha: &Ficha) -> Result<Alvo, String> {
         }
     }
     Ok(Alvo::Pc { origem })
+}
+
+/// Confere pelas referências se a pasta é do jogo. Nenhuma referência na pasta: pasta errada.
+/// Alguma faltando ou diferente: outra versão do jogo, instala com aviso.
+pub(crate) fn conferir(ficha: &Ficha, origem: &OrigemPc, pasta: &Path) -> Result<Option<String>, Erro> {
+    let errada = || Erro::PastaDoJogoErrada { jogo: ficha.jogo.nome.clone() };
+    if !pasta.is_dir() {
+        return Err(errada());
+    }
+    let mut existem = 0;
+    let mut iguais = 0;
+    for r in &origem.referencias {
+        let caminho = no_jogo(pasta, &r.caminho);
+        if caminho.is_file() {
+            existem += 1;
+            if sha256_arquivo(&caminho).is_some_and(|s| s.eq_ignore_ascii_case(&r.sha256)) {
+                iguais += 1;
+            }
+        }
+    }
+    if existem == 0 {
+        return Err(errada());
+    }
+    if iguais < origem.referencias.len() {
+        return Ok(Some(format!(
+            "Esta pasta tem uma versão do jogo diferente da testada ({}). A tradução pode não funcionar direito.",
+            origem.versao
+        )));
+    }
+    Ok(None)
 }
 
 fn conferir_sha(sha: &str, caminho: &str) -> Result<(), String> {
