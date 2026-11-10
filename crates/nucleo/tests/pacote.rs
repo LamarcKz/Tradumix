@@ -288,3 +288,16 @@ fn ficha_ps2_antiga_igual() {
     assert_eq!(ficha.baixavel_principal().nome, "patch.xdelta");
     assert_eq!(ficha.baixavel_principal().tamanho, 238_940);
 }
+
+#[test]
+fn ficha_pc_nao_grava_no_registro_da_tradumix() {
+    for ruim in [".tradumix/jogo-pc-ptbr/originais/a.txt", ".Tradumix/x", ".TRADUMIX"] {
+        assert!(motivo_de(&comum::ficha_pc_simples(&[ruim])).contains("caminho"), "{ruim}");
+    }
+}
+
+#[test]
+fn ficha_pc_com_caminhos_que_so_diferem_na_caixa() {
+    let motivo = motivo_de(&comum::ficha_pc_simples(&["a.txt", "A.TXT"]));
+    assert!(motivo.contains("repetido"), "{motivo}");
+}

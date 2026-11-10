@@ -180,7 +180,7 @@ fn remover(args: &Args) -> Result<Value, Falha> {
     let pasta = args.posicional("a pasta do pacote").map_err(uso)?;
     let jogo = PathBuf::from(args.exigir("pasta").map_err(uso)?);
     let pacote = ler_pacote_da_pasta(&pasta).map_err(recusa)?;
-    let r = remover_pc(&pacote, &jogo).map_err(|e| recusa(e.mensagem()))?;
+    let r = remover_pc(&pacote.ficha.id, &jogo).map_err(|e| recusa(e.mensagem()))?;
     serde_json::to_value(r).map_err(recusa)
 }
 

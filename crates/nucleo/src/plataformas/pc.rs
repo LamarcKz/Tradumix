@@ -54,9 +54,14 @@ pub(crate) fn ler(ficha: &Ficha) -> Result<Alvo, String> {
         if arquivos.is_empty() {
             return Err("instalacao.arquivos está vazia".into());
         }
+        let mut vistos = std::collections::HashSet::new();
         for a in arquivos {
             conferir_caminho(&a.caminho)?;
             conferir_sha(&a.sha256, &a.caminho)?;
+            // No Windows, `a.txt` e `A.TXT` são o mesmo arquivo.
+            if !vistos.insert(a.caminho.to_lowercase()) {
+                return Err(format!("caminho repetido (o Windows não diferencia maiúsculas): {}", a.caminho));
+            }
         }
     }
     Ok(Alvo::Pc { origem })
@@ -116,6 +121,10 @@ pub(crate) fn conferir_caminho(caminho: &str) -> Result<(), String> {
     }
     if caminho.starts_with('/') {
         return ruim("tem de ser relativo à pasta do jogo");
+    }
+    // `.tradumix/` guarda o registro e os originais: a tradução não pode gravar ali.
+    if caminho.split('/').next().is_some_and(|p| p.eq_ignore_ascii_case(".tradumix")) {
+        return ruim("a pasta .tradumix é do app");
     }
     for parte in caminho.split('/') {
         if parte.is_empty() {

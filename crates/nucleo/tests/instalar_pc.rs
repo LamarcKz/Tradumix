@@ -232,7 +232,7 @@ fn remover_restaura_original() {
     let antes = c.foto();
     let p = c.pacote("1.0", &[("dados/menu.txt", b"MENU PT"), ("mods/textos.sub", b"TEXTOS")], None);
     c.instalar(&p).unwrap();
-    let r = remover_pc(&p, &c.jogo).unwrap();
+    let r = remover_pc(&p.ficha.id, &c.jogo).unwrap();
     assert_eq!(r.removidos, 1);
     assert_eq!(r.restaurados, 1);
     assert!(r.mantidos.is_empty());
@@ -247,7 +247,7 @@ fn remover_mantem_arquivo_trocado_pela_loja() {
     let p = c.pacote("1.0", &[("dados/menu.txt", b"MENU PT")], None);
     c.instalar(&p).unwrap();
     fs::write(c.jogo.join("dados").join("menu.txt"), b"MENU EN v2 DA LOJA").unwrap();
-    let r = remover_pc(&p, &c.jogo).unwrap();
+    let r = remover_pc(&p.ficha.id, &c.jogo).unwrap();
     assert_eq!(r.mantidos, ["dados/menu.txt"]);
     assert_eq!(r.restaurados, 0);
     assert_eq!(c.ler("dados/menu.txt").unwrap(), b"MENU EN v2 DA LOJA");
@@ -257,7 +257,7 @@ fn remover_mantem_arquivo_trocado_pela_loja() {
 fn remover_sem_instalacao() {
     let c = Cena::nova(&[]);
     let p = c.pacote("1.0", &[("a.txt", b"a")], None);
-    let erro = remover_pc(&p, &c.jogo).unwrap_err();
+    let erro = remover_pc(&p.ficha.id, &c.jogo).unwrap_err();
     assert_eq!(erro.mensagem(), "Esta tradução não está instalada nesta pasta.");
 }
 
@@ -273,7 +273,7 @@ fn reinstalar_nao_perde_original() {
     assert_eq!(instalado_pc(&v11, &c.jogo).as_deref(), Some("1.1"));
     let guardado = c.jogo.join(".tradumix").join(ID).join("originais").join("dados").join("menu.txt");
     assert_eq!(fs::read(guardado).unwrap(), b"MENU EN");
-    remover_pc(&v11, &c.jogo).unwrap();
+    remover_pc(&v11.ficha.id, &c.jogo).unwrap();
     assert_eq!(c.foto(), antes);
 }
 
@@ -287,7 +287,7 @@ fn reinstalar_tira_arquivo_que_saiu_da_versao_nova() {
     c.instalar(&v11).unwrap();
     assert_eq!(c.ler("velho.txt"), None);
     assert_eq!(c.ler("dados/menu.txt").unwrap(), b"MENU EN");
-    remover_pc(&v11, &c.jogo).unwrap();
+    remover_pc(&v11.ficha.id, &c.jogo).unwrap();
     assert_eq!(c.foto(), antes);
 }
 
@@ -324,4 +324,110 @@ fn baixa_o_pacote_antes() {
     aplicar_com_rede(&p, &c.pedido(), Some(&rede), &mut |e, _| if etapas.last() != Some(&e) { etapas.push(e) }, &AtomicBool::new(false)).unwrap();
     assert_eq!(etapas, [Etapa::Conferindo, Etapa::Baixando, Etapa::Aplicando, Etapa::Verificando]);
     assert_eq!(c.ler("a.txt").unwrap(), b"a");
+}
+
+// ---- Achados da revisão final ----
+
+fn reg_dir(c: &Cena) -> PathBuf {
+    c.jogo.join(".tradumix").join(ID)
+}
+
+#[test]
+fn primeira_instalacao_interrompida_nao_perde_o_original() {
+    // A tentativa anterior guardou o original e trocou o arquivo, mas o PC desligou antes do instalado.json.
+    let c = Cena::nova(&[("dados/menu.txt", b"MENU EN")]);
+    let antes = c.foto();
+    let p = c.pacote("1.0", &[("dados/menu.txt", b"MENU PT")], None);
+    escrever(&reg_dir(&c).join("originais"), "dados/menu.txt", b"MENU EN");
+    escrever(&reg_dir(&c).join("desfazer"), "dados/menu.txt", b"MENU EN");
+    fs::write(c.jogo.join("dados").join("menu.txt"), b"MENU PT").unwrap();
+    c.instalar(&p).unwrap();
+    assert_eq!(fs::read(reg_dir(&c).join("originais").join("dados").join("menu.txt")).unwrap(), b"MENU EN");
+    remover_pc(&p.ficha.id, &c.jogo).unwrap();
+    assert_eq!(c.foto(), antes);
+}
+
+#[test]
+fn reinstalacao_interrompida_nao_perde_o_original() {
+    let c = Cena::nova(&[("dados/menu.txt", b"MENU EN")]);
+    let antes = c.foto();
+    let v1 = c.pacote("1.0", &[("dados/menu.txt", b"MENU PT 1.0")], None);
+    c.instalar(&v1).unwrap();
+    // A v1.1 começou a copiar e o PC desligou: o arquivo já é o da v1.1, o registro ainda é o da v1.0.
+    fs::write(c.jogo.join("dados").join("menu.txt"), b"MENU PT 1.1").unwrap();
+    let v11 = c.pacote("1.1", &[("dados/menu.txt", b"MENU PT 1.1")], None);
+    c.instalar(&v11).unwrap();
+    remover_pc(&v11.ficha.id, &c.jogo).unwrap();
+    assert_eq!(c.foto(), antes);
+}
+
+#[test]
+fn instalacao_interrompida_com_programa_novo_nao_fica_bloqueada() {
+    let c = Cena::nova(&[]);
+    let antes = c.foto();
+    let p = c.pacote("1.0", &[("mods/carregador.dll", b"DLL NOVA")], None);
+    escrever(&c.jogo, "mods/carregador.dll", b"DLL NOVA");
+    c.instalar(&p).unwrap();
+    remover_pc(&p.ficha.id, &c.jogo).unwrap();
+    assert_eq!(c.foto(), antes);
+}
+
+#[test]
+fn registro_adulterado_nao_apaga_fora_da_pasta() {
+    let c = Cena::nova(&[]);
+    let p = c.pacote("1.0", &[("a.txt", b"a")], None);
+    c.instalar(&p).unwrap();
+    let fora = c.raiz.join("Steam").join("fora.txt");
+    fs::write(&fora, b"a").unwrap();
+    let falso = format!(
+        r#"{{"id":"{ID}","versao":"1.0","arquivos":[{{"caminho":"../fora.txt","sha256":"{}","original":false}}]}}"#,
+        comum::sha256_hex(b"a")
+    );
+    fs::write(reg_dir(&c).join("instalado.json"), falso).unwrap();
+    assert!(remover_pc(&p.ficha.id, &c.jogo).is_err());
+    assert_eq!(fs::read(&fora).unwrap(), b"a");
+}
+
+#[test]
+fn registro_de_outra_traducao_nao_vale() {
+    let c = Cena::nova(&[]);
+    let p = c.pacote("1.0", &[("a.txt", b"a")], None);
+    c.instalar(&p).unwrap();
+    let texto = fs::read_to_string(reg_dir(&c).join("instalado.json")).unwrap().replace(ID, "outra");
+    fs::write(reg_dir(&c).join("instalado.json"), texto).unwrap();
+    assert!(remover_pc(&p.ficha.id, &c.jogo).is_err());
+    assert_eq!(c.ler("a.txt").unwrap(), b"a");
+}
+
+#[test]
+fn remover_com_id_que_sai_da_pasta_e_recusado() {
+    let c = Cena::nova(&[]);
+    for id in ["..", "../x", "a/b", r"a\b", ".tradumix", ""] {
+        assert!(remover_pc(id, &c.jogo).is_err(), "{id}");
+    }
+}
+
+#[test]
+fn caminho_mudou_de_caixa_entre_versoes() {
+    let c = Cena::nova(&[("Data/Text.pak", b"PAK EN")]);
+    let antes = c.foto();
+    let v1 = c.pacote("1.0", &[("Data/Text.pak", b"PAK PT 1.0")], None);
+    c.instalar(&v1).unwrap();
+    let v11 = c.pacote("1.1", &[("data/text.pak", b"PAK PT 1.1")], None);
+    c.instalar(&v11).unwrap();
+    remover_pc(&v11.ficha.id, &c.jogo).unwrap();
+    // O NTFS não diferencia: o original volta, com o nome que tiver.
+    assert_eq!(fs::read(c.jogo.join("Data").join("Text.pak")).unwrap(), b"PAK EN");
+    assert_eq!(c.foto().len(), antes.len());
+}
+
+#[test]
+fn remover_sem_o_pacote_no_cache() {
+    let c = Cena::nova(&[("dados/menu.txt", b"MENU EN")]);
+    let antes = c.foto();
+    let p = c.pacote("1.0", &[("dados/menu.txt", b"MENU PT")], None);
+    c.instalar(&p).unwrap();
+    fs::remove_dir_all(&p.pasta).unwrap();
+    remover_pc(ID, &c.jogo).unwrap();
+    assert_eq!(c.foto(), antes);
 }

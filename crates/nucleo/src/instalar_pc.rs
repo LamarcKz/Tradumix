@@ -57,8 +57,17 @@ fn registro(pasta: &Path, id: &str) -> PathBuf {
     pasta.join(PASTA_REGISTRO).join(id)
 }
 
-fn ler_instalado(reg: &Path) -> Option<Instalado> {
-    serde_json::from_str(&fs::read_to_string(reg.join("instalado.json")).ok()?).ok()
+/// O registro da tradução `id`. Só vale se for mesmo dela e se nenhum caminho sair da pasta do jogo:
+/// um `instalado.json` adulterado não pode fazer a remoção mexer fora dela.
+fn ler_instalado(reg: &Path, id: &str) -> Option<Instalado> {
+    let instalado: Instalado = serde_json::from_str(&fs::read_to_string(reg.join("instalado.json")).ok()?).ok()?;
+    let valido = instalado.id == id && instalado.arquivos.iter().all(|a| conferir_caminho(&a.caminho).is_ok());
+    valido.then_some(instalado)
+}
+
+/// O id vira nome de pasta dentro de `.tradumix`: nada de barras, `:` ou `.`/`..`.
+fn id_valido(id: &str) -> bool {
+    !id.is_empty() && !id.starts_with('.') && !id.contains(['/', '\\', ':'])
 }
 
 fn arquivos_da_ficha(pacote: &Pacote) -> Result<&[ArquivoDoPc], Erro> {
@@ -70,7 +79,12 @@ fn arquivos_da_ficha(pacote: &Pacote) -> Result<&[ArquivoDoPc], Erro> {
 
 /// A versão da tradução instalada nesta pasta, se houver.
 pub fn instalado_pc(pacote: &Pacote, pasta: &Path) -> Option<String> {
-    ler_instalado(&registro(pasta, &pacote.ficha.id)).map(|i| i.versao)
+    ler_instalado(&registro(pasta, &pacote.ficha.id), &pacote.ficha.id).map(|i| i.versao)
+}
+
+/// O caminho como o Windows o compara (sem diferenciar maiúsculas).
+fn chave(caminho: &str) -> String {
+    caminho.to_lowercase()
 }
 
 fn sha(caminho: &Path) -> Option<String> {
@@ -170,7 +184,7 @@ pub(crate) fn instalar_pc(
     let arquivos = arquivos_da_ficha(pacote)?;
     let id = &pacote.ficha.id;
     let reg = registro(pasta, id);
-    let anterior = ler_instalado(&reg);
+    let anterior = ler_instalado(&reg, id);
     let criou_registro = !reg.exists();
     let novo = reg.join("novo");
     let copias = reg.join("desfazer");
@@ -181,14 +195,17 @@ pub(crate) fn instalar_pc(
         progresso(Etapa::Aplicando, 0.0);
         fs::create_dir_all(&novo)?;
         extrair(&pacote.patch(), &novo, arquivos)?;
-        let anteriores: HashMap<&str, &ArquivoInstalado> =
-            anterior.iter().flat_map(|i| i.arquivos.iter()).map(|a| (a.caminho.as_str(), a)).collect();
+        // O Windows não diferencia maiúsculas: os caminhos são comparados em minúsculas.
+        let anteriores: HashMap<String, &ArquivoInstalado> =
+            anterior.iter().flat_map(|i| i.arquivos.iter()).map(|a| (chave(&a.caminho), a)).collect();
 
-        // Antes de tocar em qualquer coisa: programas do jogo não são substituídos.
+        // Antes de tocar em qualquer coisa: programas do jogo não são substituídos. Um arquivo que já é
+        // igual ao do pacote (sobra de uma instalação interrompida) não é do jogo.
         for a in arquivos {
             let destino = no_jogo(pasta, &a.caminho);
             let ext = a.caminho.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
-            let do_jogo = destino.exists() && !anteriores.get(a.caminho.as_str()).is_some_and(|x| !x.original);
+            let ja_e_o_novo = sha(&destino).is_some_and(|s| s.eq_ignore_ascii_case(&a.sha256));
+            let do_jogo = destino.exists() && !ja_e_o_novo && !anteriores.get(&chave(&a.caminho)).is_some_and(|x| !x.original);
             if do_jogo && PROTEGIDOS.iter().any(|p| ext.eq_ignore_ascii_case(p)) {
                 return Err(Erro::ArquivoDoJogoProtegido(a.caminho.clone()));
             }
@@ -205,12 +222,15 @@ pub(crate) fn instalar_pc(
                 }
                 let destino = no_jogo(pasta, &a.caminho);
                 let guardado = no_jogo(&reg.join("originais"), &a.caminho);
-                let antes = anteriores.get(a.caminho.as_str());
+                let antes = anteriores.get(&chave(&a.caminho));
                 let atual = if destino.is_file() { sha(&destino) } else { None };
                 let original = match (antes, &atual) {
                     // Ainda é o arquivo que a tradução pôs: o original guardado continua valendo.
                     (Some(x), Some(s)) if s.eq_ignore_ascii_case(&x.sha256) => x.original,
                     (Some(x), None) => x.original,
+                    // Já é o arquivo desta versão: uma instalação anterior parou no meio (o PC desligou).
+                    // O original guardado, se houver, é o do jogo e não pode ser trocado pelo traduzido.
+                    (_, Some(s)) if s.eq_ignore_ascii_case(&a.sha256) => guardado.exists() || antes.is_some_and(|x| x.original),
                     // Arquivo do jogo (ou trocado pela loja depois): passa a ser o original.
                     (_, Some(_)) => {
                         if guardado.exists() {
@@ -238,8 +258,8 @@ pub(crate) fn instalar_pc(
             }
 
             // Arquivos da versão anterior que saíram da nova: voltam ao original ou são apagados.
-            let atuais: HashSet<&str> = arquivos.iter().map(|a| a.caminho.as_str()).collect();
-            for velho in anterior.iter().flat_map(|i| i.arquivos.iter()).filter(|v| !atuais.contains(v.caminho.as_str())) {
+            let atuais: HashSet<String> = arquivos.iter().map(|a| chave(&a.caminho)).collect();
+            for velho in anterior.iter().flat_map(|i| i.arquivos.iter()).filter(|v| !atuais.contains(&chave(&v.caminho))) {
                 let destino = no_jogo(pasta, &velho.caminho);
                 let ainda_nosso = sha(&destino).is_some_and(|s| s.eq_ignore_ascii_case(&velho.sha256));
                 if !ainda_nosso {
@@ -269,7 +289,7 @@ pub(crate) fn instalar_pc(
             Ok(registrados) => {
                 // Originais de arquivos que saíram da versão nova não servem mais.
                 if let Some(ant) = &anterior {
-                    for velho in ant.arquivos.iter().filter(|v| v.original && !registrados.iter().any(|r| r.caminho == v.caminho)) {
+                    for velho in ant.arquivos.iter().filter(|v| v.original && !registrados.iter().any(|r| chave(&r.caminho) == chave(&v.caminho))) {
                         let g = no_jogo(&reg.join("originais"), &velho.caminho);
                         let _ = fs::remove_file(&g);
                         limpar_pastas_vazias(&g, &reg);
@@ -302,11 +322,15 @@ pub(crate) fn instalar_pc(
     resultado
 }
 
-/// Tira a tradução: arquivos novos são apagados e os trocados voltam ao original, mas só se
+/// Tira a tradução `id`: arquivos novos são apagados e os trocados voltam ao original, mas só se
 /// ainda forem os que a tradução instalou. Os que a loja trocou depois ficam como estão.
-pub fn remover_pc(pacote: &Pacote, pasta: &Path) -> Result<RemocaoPc, Erro> {
-    let reg = registro(pasta, &pacote.ficha.id);
-    let instalado = ler_instalado(&reg).ok_or(Erro::TraducaoNaoInstalada)?;
+/// Usa só o registro na pasta do jogo: funciona mesmo que a tradução tenha saído do catálogo.
+pub fn remover_pc(id: &str, pasta: &Path) -> Result<RemocaoPc, Erro> {
+    if !id_valido(id) {
+        return Err(Erro::TraducaoNaoInstalada);
+    }
+    let reg = registro(pasta, id);
+    let instalado = ler_instalado(&reg, id).ok_or(Erro::TraducaoNaoInstalada)?;
     let mut r = RemocaoPc { removidos: 0, restaurados: 0, mantidos: Vec::new() };
     for a in &instalado.arquivos {
         let destino = no_jogo(pasta, &a.caminho);

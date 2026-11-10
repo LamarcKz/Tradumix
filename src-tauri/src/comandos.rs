@@ -189,10 +189,10 @@ pub fn conferir_interno(pacote: &Pacote, iso: &Path) -> ConferenciaDto {
     ConferenciaDto { serve, mensagem, aviso, ja_existe, saida_sugerida: saida.to_string_lossy().into_owned() }
 }
 
-/// Tira uma tradução de PC da pasta do jogo.
-pub fn remover_interno(cache: &Path, pacote_id: &str, pasta: &Path) -> Result<RemocaoPc, String> {
-    let pacote = achar_pacote(cache, pacote_id).ok_or("Tradução não encontrada.")?;
-    nucleo::remover_pc(&pacote, pasta).map_err(|e| e.mensagem())
+/// Tira uma tradução de PC da pasta do jogo. Não depende do catálogo: o registro na pasta do jogo
+/// basta, e a tradução pode já ter saído do catálogo.
+pub fn remover_interno(pacote_id: &str, pasta: &Path) -> Result<RemocaoPc, String> {
+    nucleo::remover_pc(pacote_id, pasta).map_err(|e| e.mensagem())
 }
 
 /// O xdelta3 vai ao lado do executável do app (sidecar do Tauri).
@@ -284,9 +284,8 @@ pub async fn remover_traducao(estado: State<'_, Estado>, pacote_id: String, past
     if !estado.comecar_traducao() {
         return Err("Espere um instante: já há uma tradução em andamento ou o catálogo está sendo atualizado.".into());
     }
-    let cache = estado.cache();
     let traduzindo = estado.traduzindo.clone();
-    let r = tauri::async_runtime::spawn_blocking(move || remover_interno(&cache, &pacote_id, Path::new(&pasta))).await;
+    let r = tauri::async_runtime::spawn_blocking(move || remover_interno(&pacote_id, Path::new(&pasta))).await;
     traduzindo.store(false, Ordering::SeqCst);
     r.map_err(|e| e.to_string())?
 }
@@ -570,9 +569,9 @@ mod testes {
     fn remover_sem_instalacao_explica() {
         let raiz = tempfile::tempdir().unwrap();
         let (jogo, _) = pc_no_cache(raiz.path(), b"EXE");
-        let erro = remover_interno(&raiz.path().join("cache"), "jogo-pc-ptbr", &jogo).unwrap_err();
+        let erro = remover_interno("jogo-pc-ptbr", &jogo).unwrap_err();
         assert_eq!(erro, "Esta tradução não está instalada nesta pasta.");
-        assert_eq!(remover_interno(&raiz.path().join("cache"), "nada", &jogo).unwrap_err(), "Tradução não encontrada.");
+        assert_eq!(remover_interno("../fora", &jogo).unwrap_err(), "Esta tradução não está instalada nesta pasta.");
     }
 
     #[test]
