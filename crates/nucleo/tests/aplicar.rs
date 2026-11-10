@@ -53,16 +53,19 @@ fn cenario(nome_pasta: &str) -> Cenario {
     fs::remove_file(&caminho_destino).unwrap();
 
     let id = identificar(&original).unwrap();
-    let ficha = format!(
-        r#"{{"formato":1,"id":"jak2-usa-ptbr","jogo":{{"id":"jak2","nome":"Jak II","console":"ps2"}},
-        "versao":"1.0","estado":"rascunho","idioma":"pt-BR","data":"2026-11-05",
-        "origem":{{"serial":"SCUS-97265","regiao":"usa","hash_ra":"{h}","tamanho":{to}}},
-        "resultado":{{"hash_ra":"{h}","tamanho":{td}}},
-        "tradutores":[{{"nome":"Fulano"}}],"arquivos":{{"patch":"patch.xdelta"}}}}"#,
-        h = id.hash_ra,
-        to = origem.len(),
-        td = destino.len()
+    let patch = fs::read(dir_pacote.join("patch.xdelta")).unwrap();
+    let mut ficha = comum::ficha_ps2(
+        "jak2-usa-ptbr",
+        "1.0",
+        &id.hash_ra,
+        origem.len() as u64,
+        destino.len() as u64,
+        "https://x/patch",
+        &comum::sha256_hex(&patch),
+        patch.len() as u64,
+        "",
     );
+    ficha = ficha.replace(r#""estado":"beta""#, r#""estado":"rascunho""#);
     fs::write(dir_pacote.join("ficha.json"), ficha).unwrap();
     let carga = carregar_pacotes(&raiz.join("pacote"));
     assert!(carga.invalidos.is_empty());
@@ -84,13 +87,7 @@ fn pacote_do_catalogo(c: &Cenario, servidor: &comum::servidor::Servidor) -> Paco
     servidor.definir("/patch", comum::servidor::Resposta::Ok(patch.clone()));
     let ficha_path = c.pacote.pasta.join("ficha.json");
     let ficha = fs::read_to_string(&ficha_path).unwrap();
-    let download = format!(
-        r#""download":{{"patch":{{"url":"{}","sha256":"{}","tamanho":{}}}}},"arquivos":"#,
-        servidor.url("/patch"),
-        comum::sha256_hex(&patch),
-        patch.len()
-    );
-    fs::write(&ficha_path, ficha.replacen("\"arquivos\":", &download, 1)).unwrap();
+    fs::write(&ficha_path, ficha.replace("https://x/patch", &servidor.url("/patch"))).unwrap();
     fs::remove_file(c.pacote.patch()).unwrap();
     carregar_pacotes(&c.raiz.join("pacote")).pacotes.remove(0)
 }
@@ -129,7 +126,8 @@ fn gera_iso_identica_ao_destino() {
     let saida = c.raiz.join("saida.iso");
     let r = aplicar(&c.pacote, &pedido(&c, saida.clone()), &mut |_, _| {}, &AtomicBool::new(false)).unwrap();
     assert_eq!(fs::read(&saida).unwrap(), c.destino);
-    assert!(r.compativel_ra);
+    assert_eq!(r.compativel_ra, Some(true));
+    assert_eq!(r.hash_ra.as_deref(), c.pacote.alvo.hash_ra_esperado());
     assert_eq!(r.saida, saida);
     assert!(parciais(&c.raiz).is_empty());
 }
@@ -151,24 +149,24 @@ fn informa_as_tres_etapas_e_progresso_chega_a_1() {
 #[test]
 fn nome_de_saida() {
     let c = cenario("nome");
-    assert_eq!(nome_saida(&c.pacote.ficha, &c.original), c.raiz.join("Jak II (USA) PT-BR v1.0.iso"));
+    assert_eq!(nome_saida(&c.pacote, &c.original), c.raiz.join("Jak II (USA) PT-BR v1.0.iso"));
 }
 
 #[test]
 fn nome_de_saida_troca_caracteres_proibidos_e_fica_na_pasta() {
     let c = cenario("nome-limpo");
-    let mut ficha = c.pacote.ficha.clone();
-    ficha.jogo.nome = "Metal Gear Solid 3: Snake Eater".into();
+    let mut ficha = c.pacote.clone();
+    ficha.ficha.jogo.nome = "Metal Gear Solid 3: Snake Eater".into();
     assert_eq!(nome_saida(&ficha, &c.original), c.raiz.join("Metal Gear Solid 3 - Snake Eater (USA) PT-BR v1.0.iso"));
 
-    ficha.jogo.nome = "..\\..\\fora/aqui?*\"<>|".into();
+    ficha.ficha.jogo.nome = "..\\..\\fora/aqui?*\"<>|".into();
     let saida = nome_saida(&ficha, &c.original);
     assert_eq!(saida.parent().unwrap(), c.raiz);
     let nome = saida.file_name().unwrap().to_string_lossy().into_owned();
     assert!(!nome.contains(['\\', '/', ':', '?', '*', '"', '<', '>', '|']), "{nome}");
     assert!(!nome.starts_with('.'), "{nome}");
 
-    ficha.jogo.nome = "CON".into();
+    ficha.ficha.jogo.nome = "CON".into();
     let nome = nome_saida(&ficha, &c.original).file_name().unwrap().to_string_lossy().into_owned();
     assert!(nome.ends_with(".iso") && nome.starts_with("CON "), "{nome}");
 }

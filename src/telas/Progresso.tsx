@@ -1,22 +1,26 @@
 import * as api from "../api"
-import type { Etapa, Progresso } from "../tipos"
+import type { Etapa, InfoPlataforma, Progresso } from "../tipos"
 
-const TODAS: { etapa: Etapa; nome: string }[] = [
-  { etapa: "conferindo", nome: "Conferindo a ISO" },
-  { etapa: "baixando", nome: "Baixando a tradução" },
-  { etapa: "aplicando", nome: "Aplicando a tradução" },
-  { etapa: "verificando", nome: "Verificando o hash do RetroAchievements" },
-]
+/** As etapas com os nomes da plataforma (no PS2: "Conferindo a ISO" e o hash do RetroAchievements no fim). */
+function etapas(plataforma: InfoPlataforma): { etapa: Etapa; nome: string }[] {
+  return [
+    { etapa: "conferindo", nome: `Conferindo a ${plataforma.arquivo}` },
+    { etapa: "baixando", nome: "Baixando a tradução" },
+    { etapa: "aplicando", nome: "Aplicando a tradução" },
+    { etapa: "verificando", nome: plataforma.tem_ra ? "Verificando o hash do RetroAchievements" : "Verificando o resultado" },
+  ]
+}
 
 interface Props {
   nomeJogo: string
+  plataforma: InfoPlataforma
   progresso: Progresso
   /** A tradução ainda não está no PC: aparece a etapa de download. */
   comDownload?: boolean
 }
 
-export function ProgressoTela({ nomeJogo, progresso, comDownload = false }: Props) {
-  const ETAPAS = TODAS.filter((e) => comDownload || e.etapa !== "baixando")
+export function ProgressoTela({ nomeJogo, plataforma, progresso, comDownload = false }: Props) {
+  const ETAPAS = etapas(plataforma).filter((e) => comDownload || e.etapa !== "baixando")
   const atual = ETAPAS.findIndex((e) => e.etapa === progresso.etapa)
   const pct = Math.round(Math.min(Math.max(progresso.fracao, 0), 1) * 100)
 

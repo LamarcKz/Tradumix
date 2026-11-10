@@ -1,0 +1,86 @@
+# As ferramentas de teste da oficina: a cada envio para a desenvolvimento, o GitHub roda os testes,
+# compila o tradumix-cli, gera a prévia das telas e troca os arquivos da pré-release fixa
+# "ferramentas-dev". Ela é marcada como pré-release para o releases/latest (que o atualizador do
+# app lê) continuar apontando só para as versões do app.
+name: Ferramentas
+
+on:
+  push:
+    branches: [desenvolvimento]
+
+# Por padrão, só lê; o job abaixo é o único que escreve (na pré-release).
+permissions:
+  contents: read
+
+concurrency:
+  group: ferramentas-dev
+  cancel-in-progress: false
+
+jobs:
+  ferramentas:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Rust
+        run: rustup update stable --no-self-update && rustup default stable
+
+      - name: Reuse the Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          cache-on-failure: true
+
+      - name: Get xdelta3
+        run: npm run xdelta3
+
+      - name: Run all tests
+        run: npm test
+
+      - name: Build tradumix-cli
+        run: cargo build --release -p tradumix-cli
+
+      - name: Build the preview
+        run: npm run build:previa
+
+      - name: Package the tools
+        shell: pwsh
+        run: |
+          $versao = "dev-$($env:GITHUB_SHA.Substring(0, 7))"
+          node scripts/empacotar-ferramentas.mjs $versao ferramentas-saida
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Troca os arquivos da pré-release fixa: apaga os da rodada anterior e envia os novos.
+      - name: Publish to the ferramentas-dev pre-release
+        shell: pwsh
+        run: |
+          $tag = "ferramentas-dev"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --prerelease --target $env:GITHUB_SHA --title "Ferramentas de teste (desenvolvimento)" --notes "tradumix-cli e prévia das telas, refeitos a cada envio para a desenvolvimento. Não é uma versão do app."
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+            gh release edit $tag --prerelease
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            foreach ($nome in (gh release view $tag --json assets --jq ".assets[].name")) {
+              gh release delete-asset $tag $nome --yes
+              if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            }
+          }
+          gh release upload $tag (Get-ChildItem ferramentas-saida).FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

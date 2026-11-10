@@ -4,6 +4,8 @@
 // - Tradumix-X.Y.Z-portable.zip: Tradumix.exe, xdelta3.exe, portable.txt e a licença do xdelta3 (os dados
 //   ficam na pasta "dados", ali do lado).
 // - latest.json: o que o app lê para avisar da versão nova, com a assinatura do instalador.
+// - As ferramentas de teste da oficina com a versão do app: tradumix-cli-X.Y.Z-windows-x64.zip,
+//   tradumix-previa-X.Y.Z.zip e ferramentas-X.Y.Z.json (ver scripts/empacotar-ferramentas.mjs).
 //
 // A assinatura usa a chave do Tradumix, que fica fora do repositório: a variável TAURI_SIGNING_PRIVATE_KEY
 // ou, sem ela, o arquivo .tauri/tradumix.key na pasta do usuário.
@@ -14,6 +16,7 @@ import { homedir } from "node:os"
 import { join } from "node:path"
 
 import { ambienteRelease } from "./ambiente-release.mjs"
+import { empacotarFerramentas } from "./empacotar-ferramentas.mjs"
 
 const REPOSITORIO = "https://github.com/LamarcKz/Tradumix"
 const { version } = JSON.parse(readFileSync("package.json", "utf8"))
@@ -48,15 +51,18 @@ rodar("npx", ["tauri", "build"], {
 })
 
 // 2. O programa não pode levar o caminho da pasta do usuário (o remap acima tira; aqui se confere).
-const exe = join(release, "Tradumix.exe")
-const pastaDoUsuario = homedir()
-const bytes = readFileSync(exe)
-for (const forma of new Set([pastaDoUsuario, pastaDoUsuario.replaceAll("\\", "/")])) {
-  if (bytes.includes(Buffer.from(forma, "utf8")) || bytes.includes(Buffer.from(forma, "utf16le"))) {
-    console.error("O Tradumix.exe ainda tem o caminho da pasta do usuário. Nada foi gerado.")
-    process.exit(1)
+function semCaminhoDoUsuario(programa) {
+  const pastaDoUsuario = homedir()
+  const bytes = readFileSync(programa)
+  for (const forma of new Set([pastaDoUsuario, pastaDoUsuario.replaceAll("\\", "/")])) {
+    if (bytes.includes(Buffer.from(forma, "utf8")) || bytes.includes(Buffer.from(forma, "utf16le"))) {
+      console.error(`O ${programa} ainda tem o caminho da pasta do usuário. Nada foi gerado.`)
+      process.exit(1)
+    }
   }
 }
+const exe = join(release, "Tradumix.exe")
+semCaminhoDoUsuario(exe)
 
 rmSync(saida, { recursive: true, force: true })
 mkdirSync(saida, { recursive: true })
@@ -76,7 +82,14 @@ const tar = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "tar.exe")
 rodar(tar, ["-a", "-cf", portatil, "-C", pastaPortatil, "Tradumix.exe", "xdelta3.exe", "portable.txt", "licencas"])
 rmSync(pastaPortatil, { recursive: true, force: true })
 
-// 4. O latest.json, que o app lê na última release.
+// 4. As ferramentas de teste da oficina (tradumix-cli e prévia), com a versão do app.
+rodar("cargo", ["build", "--release", "-p", "tradumix-cli"], ambienteRelease(process.env, homedir(), process.cwd()))
+const cli = join(release, "tradumix-cli.exe")
+semCaminhoDoUsuario(cli)
+rodar("npx", ["vite", "build", "--config", "vite.previa.config.ts"])
+const ferramentas = empacotarFerramentas({ versao: version, saida, exe: cli, previa: "dist-previa", licenca: "LICENSE" })
+
+// 5. O latest.json, que o app lê na última release.
 const latest = {
   version,
   pub_date: new Date().toISOString(),
@@ -87,7 +100,7 @@ const latest = {
 writeFileSync(join(saida, "latest.json"), JSON.stringify(latest, null, 2) + "\n")
 
 console.log(`\nPronto em ${saida}/:`)
-for (const nome of [nomeInstalador, nomePortatil, "latest.json"]) {
+for (const nome of [nomeInstalador, nomePortatil, "latest.json", ...ferramentas]) {
   const arquivo = join(saida, nome)
   console.log(`  ${nome}  ${statSync(arquivo).size} bytes  SHA-256 ${sha256(arquivo)}`)
 }

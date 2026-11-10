@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
 import * as api from "./api"
 import App from "./App"
+import { jogoPs2, jogoPs2ePc, listaDe } from "./testes/dados"
 import type { ListaJogos } from "./tipos"
 
 vi.mock("./api", () => ({
@@ -12,10 +13,11 @@ vi.mock("./api", () => ({
   definirMostrarTrailers: vi.fn(),
   conferirIso: vi.fn(),
   traduzir: vi.fn(),
+  removerTraducao: vi.fn(),
   cancelarTraducao: vi.fn(),
   abrirPasta: vi.fn(),
   aoProgresso: vi.fn(() => () => {}),
-  escolherArquivoIso: vi.fn(),
+  escolherArquivoDoJogo: vi.fn(),
   escolherPasta: vi.fn(),
   arquivoExiste: vi.fn(),
   minimizarJanela: vi.fn(),
@@ -28,50 +30,14 @@ vi.mock("./api", () => ({
 
 const falso = vi.mocked(api)
 
-const lista: ListaJogos = {
-  jogos: [
-    {
-      id: "jak2",
-      nome: "Jak II",
-      console: "ps2",
-      capa: null,
-      traducoes: [
-        {
-          id: "jak2-usa-ptbr",
-          versao: "1.0",
-          estado: "rascunho",
-          idioma: "pt-BR",
-          regiao: "USA",
-          serial: "SCUS-97265",
-          tradutores: [{ nome: "Fulano", link: null }],
-          permissao: null,
-          descricao: "",
-          traduzido: [],
-          limitacoes: [],
-          data: "2026-11-05",
-          fundo: null,
-          origem: "catalogo",
-          novo: false,
-          patch_disponivel: true,
-          tamanho_download: null,
-          trailer_youtube: null,
-        },
-      ],
-    },
-  ],
-  invalidos: [],
-  atualizacoes: [],
-  pasta_rascunhos: "C:/pacotes",
-  catalogo: { offline: false, atualizado_em: "2026-11-05", aviso: null },
-  mostrar_trailers: true,
-}
+const lista: ListaJogos = listaDe([jogoPs2({ tradutores: [{ nome: "Fulano", link: null }], descricao: "", traduzido: [], limitacoes: [] })])
 
 beforeEach(() => {
   vi.clearAllMocks()
   falso.listarJogos.mockResolvedValue(lista)
   falso.sincronizarCatalogo.mockResolvedValue(lista)
-  falso.escolherArquivoIso.mockResolvedValue("C:/jogos/jak2.iso")
-  falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
+  falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2.iso")
+  falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso: null, saida_sugerida: "C:/jogos/Jak II (USA) PT-BR v1.0.iso", ja_existe: false })
 })
 
 async function ateTraduzir() {
@@ -154,4 +120,37 @@ it("sobre_fica_dentro_das_configuracoes", async () => {
   expect(await screen.findByText("Versão 0.1.0")).toBeInTheDocument()
   await userEvent.click(screen.getByRole("button", { name: "← Configurações" }))
   expect(await screen.findByRole("heading", { name: "Configurações" })).toBeInTheDocument()
+})
+
+it("volta_do_erro_na_mesma_plataforma", async () => {
+  const dois = listaDe([jogoPs2ePc()])
+  falso.listarJogos.mockResolvedValue(dois)
+  falso.sincronizarCatalogo.mockResolvedValue(dois)
+  falso.escolherArquivoDoJogo.mockResolvedValue("C:/jogos/jak2")
+  falso.conferirIso.mockResolvedValue({ serve: true, mensagem: null, aviso: null, saida_sugerida: "C:/jogos/jak2", ja_existe: false })
+  falso.traduzir.mockRejectedValue("Deu errado.")
+  render(<App />)
+  await userEvent.click(await screen.findByRole("button", { name: "PC" }))
+  await userEvent.click(await screen.findByRole("button", { name: /Abrir Jak II/ }))
+  expect(screen.getByRole("tab", { name: "PC" })).toHaveAttribute("aria-selected", "true")
+  await userEvent.click(screen.getByRole("button", { name: "Escolher pasta do jogo" }))
+  await userEvent.click(await screen.findByRole("button", { name: "Instalar tradução" }))
+  expect(await screen.findByText("Deu errado.")).toBeInTheDocument()
+  expect(screen.getByRole("tab", { name: "PC" })).toHaveAttribute("aria-selected", "true")
+  expect(screen.getByText("C:/jogos/jak2")).toBeInTheDocument()
+  expect(falso.traduzir).toHaveBeenCalledWith("jak2-pc-ptbr", "C:/jogos/jak2", "C:/jogos/jak2", false)
+})
+
+afterEach(() => vi.unstubAllEnvs())
+
+it("app_mostra_a_marca_da_previa_no_modo_previa", async () => {
+  vi.stubEnv("MODE", "previa")
+  render(<App />)
+  expect(await screen.findByText("Prévia: é assim que a tradução vai aparecer no Tradumix")).toBeInTheDocument()
+})
+
+it("app_sem_marca_da_previa_no_modo_normal", async () => {
+  render(<App />)
+  expect(await screen.findByRole("button", { name: /Abrir Jak II/ })).toBeInTheDocument()
+  expect(screen.queryByText(/Prévia:/)).not.toBeInTheDocument()
 })

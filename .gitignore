@@ -1,6 +1,7 @@
 target/
 node_modules/
 dist/
+dist-previa/
 *.iso
 *.parcial
 src-tauri/binaries/*.exe

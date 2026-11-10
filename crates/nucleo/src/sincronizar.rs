@@ -1,4 +1,5 @@
-//! Traz o catálogo para o cache: cada tradução vira uma pasta de pacote (ficha + capa + fundo).
+//! Traz o catálogo para o cache: cada tradução aceita vira uma pasta de pacote (ficha + capa + fundo).
+//! O que não está entre as aceitas (saiu do índice ou ficou de fora) é apagado do cache.
 //! O patch fica para a hora de traduzir.
 
 use std::collections::HashSet;
@@ -8,7 +9,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use crate::rede::{baixar_conferido, sha256_arquivo};
-use crate::{Ficha, Rede, ler_indice};
+use crate::{Ficha, NOME_CAPA_ACERVO, Rede, ler_alvo, ler_indice};
 
 const LIMITE_INDICE: u64 = 2 * 1024 * 1024;
 const LIMITE_IMAGEM: u64 = 5 * 1024 * 1024;
@@ -20,12 +21,18 @@ pub struct Sincronizacao {
     pub aviso: Option<String>,
 }
 
-/// Acervo público de capas de PS2 usado pelo PCSX2, endereçado pelo serial do jogo.
-pub const ACERVO_CAPAS_PS2: &str = "https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/{serial}.jpg";
+/// De onde vem a capa das traduções que não têm capa própria.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Capas {
+    /// Não busca capa.
+    Nao,
+    /// O acervo de cada plataforma (o normal no app).
+    Acervos,
+    /// Um modelo de endereço no lugar do acervo (testes); a plataforma preenche o modelo.
+    Modelo(String),
+}
 
-/// `url_capas`: modelo com `{serial}` para buscar a capa das traduções que não têm capa própria
-/// (normalmente `ACERVO_CAPAS_PS2`); `None` não busca.
-pub fn sincronizar(rede: &dyn Rede, url_indice: &str, cache: &Path, permitir_http_local: bool, url_capas: Option<&str>) -> Sincronizacao {
+pub fn sincronizar(rede: &dyn Rede, url_indice: &str, cache: &Path, permitir_http_local: bool, capas: Capas) -> Sincronizacao {
     let ultima = fs::read_to_string(cache.join("sincronizado.txt")).ok().map(|t| t.trim().to_string());
     let mut texto = Vec::new();
     if rede.baixar(url_indice, &mut texto, LIMITE_INDICE, &mut |_| {}).is_err() {
@@ -49,7 +56,7 @@ pub fn sincronizar(rede: &dyn Rede, url_indice: &str, cache: &Path, permitir_htt
     let _ = fs::create_dir_all(cache);
     let ids: HashSet<&str> = indice.traducoes.iter().map(|f| f.id.as_str()).collect();
     for ficha in &indice.traducoes {
-        gravar_traducao(rede, ficha, &cache.join(&ficha.id), url_capas);
+        gravar_traducao(rede, ficha, &cache.join(&ficha.id), &capas);
     }
     remover_saidas(cache, &ids);
     let hoje = chrono::Local::now().format("%Y-%m-%d").to_string();
@@ -58,35 +65,33 @@ pub fn sincronizar(rede: &dyn Rede, url_indice: &str, cache: &Path, permitir_htt
     Sincronizacao { offline: false, atualizado_em: Some(hoje), aviso: None }
 }
 
-fn gravar_traducao(rede: &dyn Rede, ficha: &Ficha, pasta: &Path, url_capas: Option<&str>) {
+fn gravar_traducao(rede: &dyn Rede, ficha: &Ficha, pasta: &Path, capas: &Capas) {
     if fs::create_dir_all(pasta).is_err() {
         return;
     }
     // Versão com outro patch: o patch baixado antes não serve mais.
     let anterior: Option<Ficha> = fs::read_to_string(pasta.join("ficha.json")).ok().and_then(|t| serde_json::from_str(&t).ok());
-    let sha_antigo = anterior.as_ref().and_then(|f| f.download.as_ref()).map(|d| d.patch.sha256.to_lowercase());
-    let sha_novo = ficha.download.as_ref().map(|d| d.patch.sha256.to_lowercase());
-    if sha_antigo != sha_novo {
-        let _ = fs::remove_file(pasta.join(&ficha.arquivos.patch));
+    let sha_antigo = anterior.as_ref().map(|f| f.baixavel_principal().sha256.to_lowercase());
+    if sha_antigo.as_deref() != Some(ficha.baixavel_principal().sha256.to_lowercase().as_str()) {
+        let _ = fs::remove_file(pasta.join(&ficha.baixavel_principal().nome));
     }
-    // Sem capa própria: a capa vem do acervo pelo serial e fica no cache como capa.jpg.
-    let mut ficha = ficha.clone();
-    if ficha.arquivos.capa.is_none() {
-        if let Some(modelo) = url_capas {
-            if capa_do_acervo(rede, modelo, &ficha.origem.serial, &pasta.join("capa.jpg")) {
-                ficha.arquivos.capa = Some("capa.jpg".into());
-            }
-        }
-    }
-    let ficha = &ficha;
     if let Ok(texto) = serde_json::to_string_pretty(ficha) {
         let _ = fs::write(pasta.join("ficha.json"), texto);
     }
-    let Some(download) = &ficha.download else { return };
-    let imagens = [(download.capa.as_ref(), ficha.arquivos.capa.as_ref()), (download.fundo.as_ref(), ficha.arquivos.fundo.as_ref())];
-    for (remoto, nome) in imagens {
-        let (Some(remoto), Some(nome)) = (remoto, nome) else { continue };
-        let destino = pasta.join(nome);
+    // Sem capa própria: a capa vem do acervo da plataforma e fica na pasta como capa.jpg.
+    let imagens = ficha.imagens.clone().unwrap_or_default();
+    if imagens.capa.is_none() {
+        let url = match (capas, ler_alvo(ficha)) {
+            (Capas::Acervos, Ok(alvo)) => alvo.url_capa(None),
+            (Capas::Modelo(modelo), Ok(alvo)) => alvo.url_capa(Some(modelo)),
+            _ => None,
+        };
+        if let Some(url) = url {
+            capa_do_acervo(rede, &url, &pasta.join(NOME_CAPA_ACERVO));
+        }
+    }
+    for remoto in imagens.capa.iter().chain(imagens.fundo.iter()) {
+        let destino = pasta.join(&remoto.nome);
         if sha256_arquivo(&destino).is_some_and(|s| s.eq_ignore_ascii_case(&remoto.sha256)) {
             continue;
         }
@@ -98,13 +103,12 @@ fn gravar_traducao(rede: &dyn Rede, ficha: &Ficha, pasta: &Path, url_capas: Opti
 }
 
 /// Baixa a capa uma vez só; aceita apenas JPEG ou PNG de verdade (o acervo responde HTML em alguns erros).
-fn capa_do_acervo(rede: &dyn Rede, modelo: &str, serial: &str, destino: &Path) -> bool {
+fn capa_do_acervo(rede: &dyn Rede, url: &str, destino: &Path) -> bool {
     if destino.is_file() {
         return true;
     }
     let mut bytes = Vec::new();
-    let url = modelo.replace("{serial}", serial);
-    if rede.baixar(&url, &mut bytes, LIMITE_IMAGEM, &mut |_| {}).is_err() {
+    if rede.baixar(url, &mut bytes, LIMITE_IMAGEM, &mut |_| {}).is_err() {
         return false;
     }
     let imagem = bytes.starts_with(&[0xFF, 0xD8, 0xFF]) || bytes.starts_with(&[0x89, b'P', b'N', b'G']);

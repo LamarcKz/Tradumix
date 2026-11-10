@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event"
 import { getCurrentWindow } from "@tauri-apps/api/window"
 import { open } from "@tauri-apps/plugin-dialog"
 
-import type { Conferencia, ListaJogos, Progresso, Resultado, VersaoDoApp, VersaoNova } from "./tipos"
+import type { Conferencia, InfoPlataforma, ListaJogos, Progresso, Remocao, Resultado, VersaoDoApp, VersaoNova } from "./tipos"
 
 export function listarJogos(): Promise<ListaJogos> {
   return invoke("listar_jogos")
@@ -25,6 +25,11 @@ export function conferirIso(pacoteId: string, iso: string): Promise<Conferencia>
 
 export function traduzir(pacoteId: string, iso: string, saida: string, sobrescrever: boolean): Promise<Resultado> {
   return invoke("traduzir", { pacoteId, iso, saida, sobrescrever })
+}
+
+/** Tira uma tradução de PC da pasta do jogo (volta os originais). */
+export function removerTraducao(pacoteId: string, pasta: string): Promise<Remocao> {
+  return invoke("remover_traducao", { pacoteId, pasta })
 }
 
 export function cancelarTraducao(): Promise<void> {
@@ -81,8 +86,11 @@ export function aoProgresso(cb: (p: Progresso) => void): () => void {
   }
 }
 
-export async function escolherArquivoIso(): Promise<string | null> {
-  const escolha = await open({ multiple: false, directory: false, filters: [{ name: "ISO de PS2", extensions: ["iso"] }] })
+/** Abre o seletor de arquivo com o filtro da plataforma (no PS2: "ISO de PS2", `.iso`); no PC, o de pasta. */
+export async function escolherArquivoDoJogo(info: InfoPlataforma): Promise<string | null> {
+  if (info.escolhe_pasta) return escolherPasta()
+  const filtro = { name: `${info.arquivo} de ${info.sigla}`, extensions: info.extensoes }
+  const escolha = await open({ multiple: false, directory: false, filters: [filtro] })
   return typeof escolha === "string" ? escolha : null
 }
 

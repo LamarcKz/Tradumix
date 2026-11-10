@@ -4,6 +4,7 @@ import * as api from "./api"
 import { BotoesJanela } from "./marca/BotoesJanela"
 import { Logo } from "./marca/Logo"
 import { MarcaDev } from "./marca/MarcaDev"
+import { MarcaPrevia } from "./marca/MarcaPrevia"
 import { AvisoVersao } from "./telas/AvisoVersao"
 import { Configuracoes } from "./telas/Configuracoes"
 import { Sobre } from "./telas/Sobre"
@@ -17,15 +18,13 @@ type Tela =
   | { nome: "inicio" }
   | { nome: "config" }
   | { nome: "sobre" }
-  | { nome: "jogo"; jogoId: string; aviso?: string; pedido?: PedidoTraducao }
-  | { nome: "progresso"; jogoId: string; comDownload: boolean }
-  | { nome: "pronto"; jogoId: string; pacoteId: string; resultado: Resultado }
+  | { nome: "jogo"; jogoId: string; plataformaId?: string; aviso?: string; pedido?: PedidoTraducao }
+  | { nome: "progresso"; jogoId: string; plataformaId: string; comDownload: boolean }
+  | { nome: "pronto"; jogoId: string; plataformaId: string; pacoteId: string; resultado: Resultado }
 
 const VAZIA: ListaJogos = {
   jogos: [],
-  invalidos: [],
   atualizacoes: [],
-  pasta_rascunhos: null,
   catalogo: { offline: false, atualizado_em: null, aviso: null },
   mostrar_trailers: true,
 }
@@ -73,12 +72,14 @@ export default function App() {
 
   async function traduzir(jogoId: string, pedido: PedidoTraducao) {
     setProgresso({ etapa: "conferindo", fracao: 0 })
-    const traducao = lista?.jogos.find((j) => j.id === jogoId)?.traducoes.find((t) => t.id === pedido.pacoteId)
-    setTela({ nome: "progresso", jogoId, comDownload: traducao ? !traducao.patch_disponivel : false })
+    const plataforma = lista?.jogos.find((j) => j.id === jogoId)?.plataformas.find((p) => p.info.id === pedido.plataformaId)
+    const traducao = plataforma?.traducoes.find((t) => t.id === pedido.pacoteId)
+    const { plataformaId } = pedido
+    setTela({ nome: "progresso", jogoId, plataformaId, comDownload: traducao ? !traducao.patch_disponivel : false })
     const parar = api.aoProgresso(setProgresso)
     try {
       const resultado = await api.traduzir(pedido.pacoteId, pedido.iso, pedido.saida, pedido.sobrescrever)
-      setTela({ nome: "pronto", jogoId, pacoteId: pedido.pacoteId, resultado })
+      setTela({ nome: "pronto", jogoId, plataformaId, pacoteId: pedido.pacoteId, resultado })
       void recarregar()
     } catch (e) {
       setTela({ nome: "jogo", jogoId, aviso: String(e), pedido })
@@ -96,6 +97,9 @@ export default function App() {
     return null
   }
   const ocupado = tela.nome === "progresso"
+  // A plataforma da tela de progresso ou de pronto (a primeira do jogo, se ela tiver saído do catálogo).
+  const plataforma =
+    jogo && "plataformaId" in tela ? (jogo.plataformas.find((p) => p.info.id === tela.plataformaId) ?? jogo.plataformas[0]) : undefined
 
   return (
     <div className="flex h-full flex-col">
@@ -122,6 +126,7 @@ export default function App() {
         <BotoesJanela />
       </header>
 
+      <MarcaPrevia />
       <AvisoVersao />
 
       {erro && (
@@ -135,7 +140,7 @@ export default function App() {
           <Inicio
             lista={lista}
             sincronizando={sincronizando}
-            aoAbrirJogo={(id) => setTela({ nome: "jogo", jogoId: id })}
+            aoAbrirJogo={(id, plataformaId) => setTela({ nome: "jogo", jogoId: id, plataformaId })}
             aoTentarDeNovo={() => void sincronizar()}
           />
         )}
@@ -152,6 +157,7 @@ export default function App() {
           <JogoTela
             key={jogo.id}
             jogo={jogo}
+            plataformaInicial={tela.plataformaId}
             aviso={tela.aviso}
             offline={lista.catalogo.offline}
             mostrarTrailers={lista.mostrar_trailers}
@@ -160,11 +166,14 @@ export default function App() {
             aoTraduzir={(pedido) => void traduzir(jogo.id, pedido)}
           />
         )}
-        {tela.nome === "progresso" && jogo && <ProgressoTela nomeJogo={jogo.nome} progresso={progresso} comDownload={tela.comDownload} />}
-        {tela.nome === "pronto" && jogo && (
+        {tela.nome === "progresso" && jogo && plataforma && (
+          <ProgressoTela nomeJogo={jogo.nome} plataforma={plataforma.info} progresso={progresso} comDownload={tela.comDownload} />
+        )}
+        {tela.nome === "pronto" && jogo && plataforma && (
           <Pronto
-            jogo={jogo}
-            traducao={jogo.traducoes.find((t) => t.id === tela.pacoteId) ?? jogo.traducoes[0]}
+            nomeJogo={jogo.nome}
+            plataforma={plataforma}
+            traducao={plataforma.traducoes.find((t) => t.id === tela.pacoteId) ?? plataforma.traducoes[0]}
             resultado={tela.resultado}
             aoVoltar={() => setTela({ nome: "inicio" })}
           />

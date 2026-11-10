@@ -12,12 +12,12 @@ pub fn baixar_patch(rede: &dyn Rede, pacote: &Pacote, progresso: &mut dyn FnMut(
     if pacote.patch_disponivel() {
         return Ok(());
     }
-    let download = pacote.ficha.download.as_ref().ok_or(Erro::PrecisaInternet)?;
-    let total = download.patch.tamanho.max(1) as f64;
+    let patch = pacote.ficha.baixavel_principal();
+    let total = patch.tamanho.max(1) as f64;
     progresso(0.0);
     baixar_conferido(
         rede,
-        &download.patch,
+        patch,
         &pacote.patch(),
         LIMITE_PATCH,
         &mut |vieram| progresso((vieram as f64 / total).min(1.0) as f32),

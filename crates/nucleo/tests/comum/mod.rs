@@ -10,25 +10,39 @@ pub fn sha256_hex(bytes: &[u8]) -> String {
     Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// Ficha do catálogo com download apontando para `base` (`/<id>/patch`, `/<id>/capa`).
-pub fn ficha_catalogo(id: &str, versao: &str, base: &str, hash_ra: &str, tamanho_iso: u64, patch: &[u8], capa: Option<&[u8]>) -> String {
-    let capa_dl = capa
-        .map(|c| format!(r#","capa":{{"url":"{base}/{id}/capa","sha256":"{}","tamanho":{}}}"#, sha256_hex(c), c.len()))
-        .unwrap_or_default();
+/// Ficha formato 2 de um jogo de PS2 (Jak II, USA). `extra` entra antes do `}` final
+/// (ex.: `,"imagens":{…}` ou `,"midia":{…}`).
+#[allow(clippy::too_many_arguments)]
+pub fn ficha_ps2(
+    id: &str,
+    versao: &str,
+    hash_ra: &str,
+    tamanho_origem: u64,
+    tamanho_resultado: u64,
+    patch_url: &str,
+    patch_sha: &str,
+    patch_tamanho: u64,
+    extra: &str,
+) -> String {
     format!(
-        r#"{{"formato":1,"id":"{id}","jogo":{{"id":"jak2","nome":"Jak II","console":"ps2"}},"versao":"{versao}","estado":"beta",
-        "idioma":"pt-BR","data":"2026-11-05",
-        "origem":{{"serial":"SCUS-97265","regiao":"usa","hash_ra":"{hash_ra}","tamanho":{tamanho_iso}}},
-        "resultado":{{"hash_ra":"{hash_ra}","tamanho":{tamanho_iso}}},"tradutores":[{{"nome":"Fulano"}}],
-        "arquivos":{{"patch":"patch.xdelta","capa":"capa.jpg"}},
-        "download":{{"patch":{{"url":"{base}/{id}/patch","sha256":"{}","tamanho":{}}}{capa_dl}}}}}"#,
-        sha256_hex(patch),
-        patch.len()
+        r#"{{"formato":2,"id":"{id}","jogo":{{"id":"jak2","nome":"Jak II"}},"plataforma":"ps2",
+        "instalacao":{{"tipo":"imagem-xdelta","patch":{{"nome":"patch.xdelta","url":"{patch_url}","sha256":"{patch_sha}","tamanho":{patch_tamanho}}}}},
+        "versao":"{versao}","estado":"beta","idioma":"pt-BR","data":"2026-11-05",
+        "origem":{{"serial":"SCUS-97265","regiao":"usa","hash_ra":"{hash_ra}","tamanho":{tamanho_origem}}},
+        "resultado":{{"hash_ra":"{hash_ra}","tamanho":{tamanho_resultado}}},"tradutores":[{{"nome":"Fulano"}}]{extra}}}"#
     )
 }
 
+/// Ficha do catálogo com os downloads apontando para `base` (`/<id>/patch`, `/<id>/capa`).
+pub fn ficha_catalogo(id: &str, versao: &str, base: &str, hash_ra: &str, tamanho_iso: u64, patch: &[u8], capa: Option<&[u8]>) -> String {
+    let imagens = capa
+        .map(|c| format!(r#","imagens":{{"capa":{{"nome":"capa.jpg","url":"{base}/{id}/capa","sha256":"{}","tamanho":{}}}}}"#, sha256_hex(c), c.len()))
+        .unwrap_or_default();
+    ficha_ps2(id, versao, hash_ra, tamanho_iso, tamanho_iso, &format!("{base}/{id}/patch"), &sha256_hex(patch), patch.len() as u64, &imagens)
+}
+
 pub fn indice(fichas: &[String]) -> Vec<u8> {
-    format!(r#"{{"formato":1,"atualizado":"2026-11-05","traducoes":[{}]}}"#, fichas.join(",")).into_bytes()
+    format!(r#"{{"formato":2,"atualizado":"2026-11-05","traducoes":[{}]}}"#, fichas.join(",")).into_bytes()
 }
 
 const SETOR: usize = 2048;
@@ -144,4 +158,80 @@ pub fn gravar(pasta: &std::path::Path, nome: &str, bytes: &[u8]) -> std::path::P
     let caminho = pasta.join(nome);
     std::fs::write(&caminho, bytes).unwrap();
     caminho
+}
+
+/// Espalha cada setor de 2048 bytes de uma ISO em setores de 2352 bytes de um `.bin`, com
+/// `cabecalho` bytes antes dos dados (16 no MODE1, 24 no MODE2) e o resto do setor de rodapé.
+pub fn bin_de_iso(iso: &[u8], cabecalho: usize) -> Vec<u8> {
+    let mut bin = Vec::with_capacity(iso.len() / SETOR * 2352);
+    for setor in iso.chunks(SETOR) {
+        let mut bruto = vec![0xAAu8; 2352];
+        bruto[..12].copy_from_slice(&[0, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0]);
+        bruto[cabecalho..cabecalho + setor.len()].copy_from_slice(setor);
+        bin.extend(bruto);
+    }
+    bin
+}
+
+/// Ficha formato 2 de um jogo de PS1 (SLUS-00684, USA). `extra` entra antes do `}` final.
+#[allow(clippy::too_many_arguments)]
+pub fn ficha_ps1(
+    id: &str,
+    hash_origem: &str,
+    hash_resultado: &str,
+    tamanho_origem: u64,
+    tamanho_resultado: u64,
+    patch_sha: &str,
+    patch_tamanho: u64,
+    extra: &str,
+) -> String {
+    format!(
+        r#"{{"formato":2,"id":"{id}","jogo":{{"id":"jogo-ps1","nome":"Jogo de PS1"}},"plataforma":"ps1",
+        "instalacao":{{"tipo":"imagem-xdelta","patch":{{"nome":"patch.xdelta","url":"https://x/patch","sha256":"{patch_sha}","tamanho":{patch_tamanho}}}}},
+        "versao":"1.0","estado":"rascunho","idioma":"pt-BR","data":"2026-11-08",
+        "origem":{{"serial":"SLUS-00684","regiao":"usa","hash_ra":"{hash_origem}","tamanho":{tamanho_origem}}},
+        "resultado":{{"hash_ra":"{hash_resultado}","tamanho":{tamanho_resultado}}},"tradutores":[{{"nome":"Fulano"}}]{extra}}}"#
+    )
+}
+
+/// Executável `PS-X EXE` mínimo (cabeçalho de 2048 bytes declarando `corpo` bytes de código).
+pub fn exe_psx(corpo: usize, semente: u8) -> Vec<u8> {
+    let mut b = vec![0u8; 2048 + corpo];
+    b[..8].copy_from_slice(b"PS-X EXE");
+    b[28..32].copy_from_slice(&(corpo as u32).to_le_bytes());
+    for (i, x) in b[2048..].iter_mut().enumerate() {
+        *x = (i as u8).wrapping_mul(17).wrapping_add(semente);
+    }
+    b
+}
+
+pub const SHA_A: &str = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+/// Ficha formato 2 de um jogo de PC (`pasta-do-jogo`). `arquivos` e `referencias` são listas JSON
+/// (`[{"caminho":…,"sha256":…,"tamanho":…}]` e `[{"caminho":…,"sha256":…}]`).
+pub fn ficha_pc(id: &str, versao: &str, pacote_sha: &str, pacote_tamanho: u64, arquivos: &str, referencias: &str) -> String {
+    format!(
+        r#"{{"formato":2,"id":"{id}","jogo":{{"id":"jogo-pc","nome":"Jogo de PC"}},"plataforma":"pc",
+        "instalacao":{{"tipo":"pasta-do-jogo","pacote":{{"nome":"pacote.zip","url":"https://x/pacote.zip","sha256":"{pacote_sha}","tamanho":{pacote_tamanho}}},
+        "arquivos":{arquivos}}},
+        "versao":"{versao}","estado":"rascunho","idioma":"pt-BR","data":"2026-11-08",
+        "origem":{{"loja":"Steam","versao":"1.0.3","referencias":{referencias}}},
+        "resultado":{{}},"tradutores":[{{"nome":"Fulano"}}]}}"#
+    )
+}
+
+/// `ficha_pc` com um arquivo por caminho dado e uma referência `jogo.exe`.
+pub fn ficha_pc_simples(caminhos: &[&str]) -> String {
+    let arquivos: Vec<String> = caminhos
+        .iter()
+        .map(|c| format!(r#"{{"caminho":{},"sha256":"{SHA_A}","tamanho":3}}"#, serde_json::to_string(c).unwrap()))
+        .collect();
+    ficha_pc(
+        "jogo-pc-ptbr",
+        "1.0",
+        SHA_A,
+        100,
+        &format!("[{}]", arquivos.join(",")),
+        &format!(r#"[{{"caminho":"jogo.exe","sha256":"{SHA_A}"}}]"#),
+    )
 }

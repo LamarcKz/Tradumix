@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Erro, Ficha, IdentidadePs2, Pacote, Rede, identificar};
+use crate::{Erro, Instalacao, Pacote, Rede};
 
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 const MARGEM_ESPACO: u64 = 64 * 1024 * 1024;
@@ -36,56 +36,22 @@ pub struct Pedido {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Resultado {
     pub saida: PathBuf,
-    pub hash_ra: String,
-    pub compativel_ra: bool,
+    /// Hash do RetroAchievements da cópia gerada (`None` em plataforma sem RetroAchievements).
+    pub hash_ra: Option<String>,
+    /// O hash continua o da original (`None` em plataforma sem RetroAchievements).
+    pub compativel_ra: Option<bool>,
     pub segundos: f64,
 }
 
-/// Mesma pasta da original: `<jogo> (<Região>) <IDIOMA> v<versão>.iso`.
-pub fn nome_saida(ficha: &Ficha, iso_original: &Path) -> PathBuf {
-    let pasta = iso_original.parent().unwrap_or(Path::new(""));
-    let nome = format!(
-        "{} ({}) {} v{}",
-        ficha.jogo.nome,
-        ficha.origem.regiao.nome(),
-        ficha.idioma.to_uppercase(),
-        ficha.versao
-    );
-    pasta.join(format!("{}.iso", nome_de_arquivo_seguro(&nome)))
+/// Nome sugerido para a cópia traduzida, na mesma pasta da original (a plataforma decide).
+pub fn nome_saida(pacote: &Pacote, original: &Path) -> PathBuf {
+    pacote.alvo.nome_saida(&pacote.ficha, original)
 }
 
-/// Tira o que o Windows não aceita num nome de arquivo (e qualquer separador de pasta):
-/// `:` vira ` -` ("Jogo: Subtítulo" → "Jogo - Subtítulo"), o resto some.
-fn nome_de_arquivo_seguro(nome: &str) -> String {
-    let mut limpo = String::with_capacity(nome.len());
-    for c in nome.chars() {
-        match c {
-            ':' => limpo.push_str(" -"),
-            '<' | '>' | '"' | '/' | '\\' | '|' | '?' | '*' => limpo.push(' '),
-            c if c.is_control() => {}
-            c => limpo.push(c),
-        }
-    }
-    let junto = limpo.split_whitespace().collect::<Vec<_>>().join(" ");
-    let aparado = junto.trim_matches(|c: char| c == '.' || c == ' ').to_string();
-    if aparado.is_empty() { "Jogo".into() } else { aparado }
-}
-
-/// Confere se a ISO é a que a tradução espera, sem ler a imagem inteira.
-pub fn conferir(pacote: &Pacote, iso_original: &Path) -> Result<IdentidadePs2, Erro> {
-    let id = identificar(iso_original)?;
-    let origem = &pacote.ficha.origem;
-    let esperado_nome = format!("{} ({})", pacote.ficha.jogo.nome, origem.regiao.nome());
-    if !id.serial.eq_ignore_ascii_case(&origem.serial) {
-        return Err(Erro::JogoErrado { esperado_nome, esperado_serial: origem.serial.clone(), encontrado_serial: id.serial });
-    }
-    if !id.hash_ra.eq_ignore_ascii_case(&origem.hash_ra) {
-        return Err(Erro::VersaoDiferente { esperado_nome, serial: origem.serial.clone() });
-    }
-    if id.tamanho != origem.tamanho {
-        return Err(Erro::TamanhoDiferente { esperado: origem.tamanho, encontrado: id.tamanho });
-    }
-    Ok(id)
+/// Confere se o arquivo escolhido é a cópia que a tradução espera, sem lê-lo inteiro.
+/// `Ok(Some(aviso))`: serve, mas com um aviso para mostrar (PC com outra versão do jogo).
+pub fn conferir(pacote: &Pacote, original: &Path) -> Result<Option<String>, Erro> {
+    pacote.alvo.conferir(&pacote.ficha, original)
 }
 
 /// Aplica sem internet: o patch precisa já estar na pasta do pacote.
@@ -106,20 +72,67 @@ pub fn aplicar_com_rede(
     progresso: &mut dyn FnMut(Etapa, f32),
     cancelar: &AtomicBool,
 ) -> Result<Resultado, Erro> {
+    match &pacote.ficha.instalacao {
+        Instalacao::ImagemXdelta { .. } => instalar_imagem_xdelta(pacote, pedido, rede, progresso, cancelar),
+        Instalacao::PastaDoJogo { .. } => instalar_pasta_do_jogo(pacote, pedido, rede, progresso, cancelar),
+    }
+}
+
+/// `pasta-do-jogo`: confere a pasta, baixa o pacote se precisar e instala (a saída é a própria pasta).
+fn instalar_pasta_do_jogo(
+    pacote: &Pacote,
+    pedido: &Pedido,
+    rede: Option<&dyn Rede>,
+    progresso: &mut dyn FnMut(Etapa, f32),
+    cancelar: &AtomicBool,
+) -> Result<Resultado, Erro> {
     let inicio = Instant::now();
+    let pasta = &pedido.iso_original;
     progresso(Etapa::Conferindo, 0.0);
-    if mesmo_arquivo(&pedido.saida, &pedido.iso_original) {
+    conferir(pacote, pasta)?;
+    progresso(Etapa::Conferindo, 1.0);
+    if !pacote.patch_disponivel() {
+        let rede = rede.ok_or(Erro::PrecisaInternet)?;
+        progresso(Etapa::Baixando, 0.0);
+        crate::baixar_patch(rede, pacote, &mut |f| progresso(Etapa::Baixando, f), cancelar)?;
+    }
+    crate::instalar_pc::instalar_pc(pacote, pasta, progresso, cancelar)?;
+    Ok(Resultado { saida: pasta.clone(), hash_ra: None, compativel_ra: None, segundos: inicio.elapsed().as_secs_f64() })
+}
+
+/// `imagem-xdelta`: confere a original, baixa o patch se precisar, gera a cópia traduzida ao lado
+/// (num `.parcial` renomeado no fim) e verifica o resultado pela plataforma.
+fn instalar_imagem_xdelta(
+    pacote: &Pacote,
+    pedido: &Pedido,
+    rede: Option<&dyn Rede>,
+    progresso: &mut dyn FnMut(Etapa, f32),
+    cancelar: &AtomicBool,
+) -> Result<Resultado, Erro> {
+    let inicio = Instant::now();
+    let alvo = &pacote.alvo;
+    let original = &pedido.iso_original;
+    progresso(Etapa::Conferindo, 0.0);
+    if mesmo_arquivo(&pedido.saida, original) {
         return Err(Erro::SaidaIgualOriginal);
     }
-    if pedido.saida.exists() && !pedido.sobrescrever {
-        return Err(Erro::SaidaJaExiste(pedido.saida.clone()));
+    let entrada = alvo.entrada_patch(original)?;
+    let saidas = alvo.arquivos_saida(original, &pedido.saida)?;
+    if saidas.iter().any(|s| mesmo_arquivo(s, original) || mesmo_arquivo(s, &entrada)) {
+        return Err(Erro::SaidaIgualOriginal);
     }
-    conferir(pacote, &pedido.iso_original)?;
-    let esperado = pacote.ficha.resultado.tamanho;
+    if !pedido.sobrescrever {
+        if let Some(existe) = saidas.iter().find(|s| s.exists()) {
+            return Err(Erro::SaidaJaExiste(existe.clone()));
+        }
+    }
+    conferir(pacote, original)?;
+    let esperado = alvo.tamanho_resultado();
+    let precisa = esperado + alvo.tamanho_extra(original) + MARGEM_ESPACO;
     let pasta_saida = pedido.saida.parent().filter(|p| !p.as_os_str().is_empty()).unwrap_or(Path::new("."));
     let livre = espaco_livre(pasta_saida)?;
-    if livre < esperado + MARGEM_ESPACO {
-        return Err(Erro::EspacoInsuficiente { precisa: esperado + MARGEM_ESPACO, livre });
+    if livre < precisa {
+        return Err(Erro::EspacoInsuficiente { precisa, livre });
     }
     progresso(Etapa::Conferindo, 1.0);
 
@@ -129,21 +142,31 @@ pub fn aplicar_com_rede(
         crate::baixar_patch(rede, pacote, &mut |f| progresso(Etapa::Baixando, f), cancelar)?;
     }
 
-    let parcial = caminho_parcial(&pedido.saida);
-    let resultado = gerar(pacote, pedido, &parcial, esperado, progresso, cancelar).and_then(|()| {
+    let saida_patch = alvo.saida_patch(original, &pedido.saida)?;
+    let parcial = caminho_parcial(&saida_patch);
+    let mut gravou = false;
+    let resultado = gerar(pacote, &entrada, &pedido.xdelta3, &parcial, esperado, progresso, cancelar).and_then(|()| {
         progresso(Etapa::Verificando, 0.0);
-        let id = identificar(&parcial)?;
-        fs::rename(&parcial, &pedido.saida)?;
+        let hash_ra = alvo.verificar_resultado(original, &parcial)?;
+        fs::rename(&parcial, &saida_patch)?;
+        gravou = true;
+        alvo.completar_saida(original, &pedido.saida)?;
         progresso(Etapa::Verificando, 1.0);
         Ok(Resultado {
             saida: pedido.saida.clone(),
-            compativel_ra: id.hash_ra.eq_ignore_ascii_case(&pacote.ficha.origem.hash_ra),
-            hash_ra: id.hash_ra,
+            compativel_ra: hash_ra.as_deref().zip(alvo.hash_ra_esperado()).map(|(a, b)| a.eq_ignore_ascii_case(b)),
+            hash_ra,
             segundos: inicio.elapsed().as_secs_f64(),
         })
     });
     if resultado.is_err() {
         let _ = fs::remove_file(&parcial);
+        // Depois do patch gravado, uma falha desfaz tudo o que a instalação criou.
+        if gravou {
+            for s in &saidas {
+                let _ = fs::remove_file(s);
+            }
+        }
     }
     resultado
 }
@@ -151,7 +174,8 @@ pub fn aplicar_com_rede(
 /// Roda o xdelta3 gravando em `parcial` e informa o progresso pelo tamanho do arquivo.
 fn gerar(
     pacote: &Pacote,
-    pedido: &Pedido,
+    entrada: &Path,
+    xdelta3: &Path,
     parcial: &Path,
     esperado: u64,
     progresso: &mut dyn FnMut(Etapa, f32),
@@ -161,9 +185,9 @@ fn gerar(
     if cancelar.load(Ordering::Relaxed) {
         return Err(Erro::Cancelado);
     }
-    let mut filho = Command::new(&pedido.xdelta3)
+    let mut filho = Command::new(xdelta3)
         .args(["-d", "-f", "-s"])
-        .arg(&pedido.iso_original)
+        .arg(entrada)
         .arg(pacote.patch())
         .arg(parcial)
         .env_remove("XDELTA")

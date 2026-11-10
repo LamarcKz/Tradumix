@@ -6,9 +6,12 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{IdentidadePs2, Regiao};
+use crate::plataformas::{Alvo, ler_alvo};
 
-pub const FORMATO_FICHA: u32 = 1;
+pub const FORMATO_FICHA: u32 = 2;
+
+/// Nome com que a capa do acervo da plataforma é guardada na pasta do pacote.
+pub const NOME_CAPA_ACERVO: &str = "capa.jpg";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -22,21 +25,6 @@ pub enum Estado {
 pub struct Jogo {
     pub id: String,
     pub nome: String,
-    pub console: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Origem {
-    pub serial: String,
-    pub regiao: Regiao,
-    pub hash_ra: String,
-    pub tamanho: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ResultadoEsperado {
-    pub hash_ra: String,
-    pub tamanho: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -46,13 +34,46 @@ pub struct Tradutor {
     pub link: Option<String>,
 }
 
+/// Um arquivo que o app baixa: guardado na pasta do pacote com `nome`, conferido por SHA-256 e tamanho.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Arquivos {
-    pub patch: String,
-    #[serde(default)]
-    pub capa: Option<String>,
-    #[serde(default)]
-    pub fundo: Option<String>,
+pub struct ArquivoBaixavel {
+    pub nome: String,
+    pub url: String,
+    pub sha256: String,
+    pub tamanho: u64,
+}
+
+/// Um arquivo que a tradução de PC põe na pasta do jogo.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ArquivoDoPc {
+    /// Caminho relativo à pasta do jogo, com `/`.
+    pub caminho: String,
+    pub sha256: String,
+    pub tamanho: u64,
+}
+
+/// Como a tradução é instalada, com o que esse jeito precisa baixar.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "tipo")]
+pub enum Instalacao {
+    /// Aplica um `.xdelta` na imagem do jogo e grava a cópia traduzida ao lado da original.
+    #[serde(rename = "imagem-xdelta")]
+    ImagemXdelta { patch: ArquivoBaixavel },
+    /// Extrai um `.zip` na pasta do jogo instalado, guardando os originais que forem trocados.
+    #[serde(rename = "pasta-do-jogo")]
+    PastaDoJogo { pacote: ArquivoBaixavel, arquivos: Vec<ArquivoDoPc> },
+}
+
+/// Extensões de arquivo que contam como programa ("Contém programa").
+const EXTENSOES_DE_PROGRAMA: &[&str] = &["exe", "dll", "bat", "cmd", "ps1", "vbs", "js", "py", "msi", "scr", "com"];
+
+/// Capa e fundo próprios da tradução (por exemplo, arte do tradutor).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct Imagens {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capa: Option<ArquivoBaixavel>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fundo: Option<ArquivoBaixavel>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -60,12 +81,17 @@ pub struct Ficha {
     pub formato: u32,
     pub id: String,
     pub jogo: Jogo,
+    /// Id da plataforma (`ps2`…). Ver `plataformas`.
+    pub plataforma: String,
+    pub instalacao: Instalacao,
     pub versao: String,
     pub estado: Estado,
     pub idioma: String,
     pub data: String,
-    pub origem: Origem,
-    pub resultado: ResultadoEsperado,
+    /// A cópia que a tradução espera; o formato é da plataforma.
+    pub origem: serde_json::Value,
+    /// A cópia que a tradução gera; o formato é da plataforma.
+    pub resultado: serde_json::Value,
     pub tradutores: Vec<Tradutor>,
     #[serde(default)]
     pub permissao: Option<String>,
@@ -75,13 +101,39 @@ pub struct Ficha {
     pub traduzido: Vec<String>,
     #[serde(default)]
     pub limitacoes: Vec<String>,
-    pub arquivos: Arquivos,
-    /// De onde baixar os arquivos, nas fichas do catálogo. Rascunhos locais não têm.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub download: Option<Download>,
+    pub imagens: Option<Imagens>,
     /// Links para mídia que fica em outros lugares (o catálogo não guarda imagem nem vídeo de terceiros).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub midia: Option<Midia>,
+}
+
+impl Ficha {
+    /// Todos os arquivos que a tradução manda baixar (instalação e imagens).
+    pub fn arquivos(&self) -> Vec<&ArquivoBaixavel> {
+        let mut lista = vec![self.baixavel_principal()];
+        if let Some(imagens) = &self.imagens {
+            lista.extend(imagens.capa.iter().chain(imagens.fundo.iter()));
+        }
+        lista
+    }
+
+    /// O que a instalação baixa: o patch (`imagem-xdelta`) ou o pacote (`pasta-do-jogo`).
+    pub fn baixavel_principal(&self) -> &ArquivoBaixavel {
+        match &self.instalacao {
+            Instalacao::ImagemXdelta { patch } => patch,
+            Instalacao::PastaDoJogo { pacote, .. } => pacote,
+        }
+    }
+
+    /// A tradução põe na pasta do jogo algum arquivo que roda (`.exe`, `.dll`, script…).
+    pub fn contem_programa(&self) -> bool {
+        let Instalacao::PastaDoJogo { arquivos, .. } = &self.instalacao else { return false };
+        arquivos.iter().any(|a| {
+            let nome = a.caminho.rsplit('/').next().unwrap_or(&a.caminho);
+            nome.rsplit_once('.').is_some_and(|(_, ext)| EXTENSOES_DE_PROGRAMA.iter().any(|e| ext.eq_ignore_ascii_case(e)))
+        })
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -91,50 +143,58 @@ pub struct Midia {
     pub trailer_youtube: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct ArquivoRemoto {
-    pub url: String,
-    pub sha256: String,
-    pub tamanho: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Download {
-    pub patch: ArquivoRemoto,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub capa: Option<ArquivoRemoto>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fundo: Option<ArquivoRemoto>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Imagem {
     Capa,
     Fundo,
 }
 
+/// Uma tradução guardada numa pasta do cache: a ficha, o que a plataforma leu dela e a pasta.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Pacote {
     pub ficha: Ficha,
+    pub alvo: Alvo,
     pub pasta: PathBuf,
 }
 
 impl Pacote {
+    /// Onde fica o arquivo principal baixado (o patch ou o pacote de PC).
     pub fn patch(&self) -> PathBuf {
-        self.pasta.join(&self.ficha.arquivos.patch)
+        self.pasta.join(&self.ficha.baixavel_principal().nome)
     }
 
-    /// O patch já está na pasta (rascunho, ou tradução do catálogo já baixada).
+    /// Os arquivos da ficha que já estão na pasta batem com o `tamanho` e o `sha256` dela.
+    /// Os que não estão (ainda não baixados) não contam.
+    pub fn conferir_baixados(&self) -> Result<(), String> {
+        for a in self.ficha.arquivos() {
+            let caminho = self.pasta.join(&a.nome);
+            let Ok(meta) = fs::metadata(&caminho) else { continue };
+            if meta.len() != a.tamanho {
+                return Err(format!("o arquivo {} tem {} bytes, e a ficha diz {}", a.nome, meta.len(), a.tamanho));
+            }
+            let sha = crate::rede::sha256_arquivo(&caminho).unwrap_or_default();
+            if !sha.eq_ignore_ascii_case(&a.sha256) {
+                return Err(format!("o arquivo {} não confere com o sha256 da ficha", a.nome));
+            }
+        }
+        Ok(())
+    }
+
+    /// O patch já foi baixado para a pasta.
     pub fn patch_disponivel(&self) -> bool {
         self.patch().is_file()
     }
 
+    /// Capa própria da ficha ou, sem ela, a capa do acervo se já estiver na pasta.
     pub fn imagem(&self, qual: Imagem) -> Option<PathBuf> {
-        let nome = match qual {
-            Imagem::Capa => self.ficha.arquivos.capa.as_ref(),
-            Imagem::Fundo => self.ficha.arquivos.fundo.as_ref(),
-        }?;
-        Some(self.pasta.join(nome))
+        let imagens = self.ficha.imagens.as_ref();
+        match qual {
+            Imagem::Capa => match imagens.and_then(|i| i.capa.as_ref()) {
+                Some(capa) => Some(self.pasta.join(&capa.nome)),
+                None => Some(self.pasta.join(NOME_CAPA_ACERVO)).filter(|p| p.is_file()),
+            },
+            Imagem::Fundo => imagens.and_then(|i| i.fundo.as_ref()).map(|f| self.pasta.join(&f.nome)),
+        }
     }
 }
 
@@ -148,14 +208,6 @@ pub struct PacoteInvalido {
 pub struct CargaPacotes {
     pub pacotes: Vec<Pacote>,
     pub invalidos: Vec<PacoteInvalido>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct JogoNoCatalogo {
-    pub id: String,
-    pub nome: String,
-    pub console: String,
-    pub pacotes: Vec<String>,
 }
 
 /// Até quantos níveis abaixo da pasta escolhida o app procura pacotes
@@ -197,19 +249,20 @@ fn procurar_pacotes(pasta: &Path, nivel: usize, achados: &mut Vec<PathBuf>) {
     }
 }
 
+/// Lê o pacote de uma pasta com `ficha.json` (sem procurar em subpastas).
+pub fn ler_pacote_da_pasta(pasta: &Path) -> Result<Pacote, String> {
+    ler_pacote(pasta)
+}
+
 fn ler_pacote(pasta: &Path) -> Result<Pacote, String> {
     let texto = fs::read_to_string(pasta.join("ficha.json")).map_err(|e| format!("não foi possível ler o ficha.json: {e}"))?;
     let ficha: Ficha = serde_json::from_str(&texto).map_err(|e| format!("ficha.json inválido: {e}"))?;
-    validar_ficha(&ficha)?;
-    let pacote = Pacote { ficha, pasta: pasta.to_path_buf() };
-    if !pacote.patch().is_file() && pacote.ficha.download.is_none() {
-        return Err(format!("o arquivo do patch {} não existe", pacote.ficha.arquivos.patch));
-    }
-    Ok(pacote)
+    let alvo = validar_ficha(&ficha)?;
+    Ok(Pacote { ficha, alvo, pasta: pasta.to_path_buf() })
 }
 
-/// Regras que valem para toda ficha, venha de uma pasta ou do catálogo.
-pub(crate) fn validar_ficha(ficha: &Ficha) -> Result<(), String> {
+/// Regras que valem para toda ficha. Devolve o que a plataforma leu de `origem` e `resultado`.
+pub(crate) fn validar_ficha(ficha: &Ficha) -> Result<Alvo, String> {
     if ficha.formato != FORMATO_FICHA {
         return Err(format!("formato de ficha {} não suportado (esperado {FORMATO_FICHA})", ficha.formato));
     }
@@ -222,51 +275,27 @@ pub(crate) fn validar_ficha(ficha: &Ficha) -> Result<(), String> {
     if !nome_simples(&ficha.id) || ficha.id.starts_with('.') {
         return Err(format!("o id {} não pode ter barras, ':' nem começar com ponto", ficha.id));
     }
-    for (campo, hash) in [("origem.hash_ra", &ficha.origem.hash_ra), ("resultado.hash_ra", &ficha.resultado.hash_ra)] {
-        if hash.len() != 32 || !hash.chars().all(|c| c.is_ascii_hexdigit()) {
-            return Err(format!("{campo} deve ter 32 caracteres hexadecimais"));
-        }
+    let alvo = ler_alvo(ficha)?;
+    let pasta_do_jogo = matches!(ficha.instalacao, Instalacao::PastaDoJogo { .. });
+    if pasta_do_jogo != alvo.plataforma().info().escolhe_pasta {
+        return Err("o tipo de instalação não combina com a plataforma".into());
     }
     if let Some(id) = ficha.midia.as_ref().and_then(|m| m.trailer_youtube.as_ref()) {
         if id.len() != 11 || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
             return Err(format!("trailer_youtube deve ser o id do vídeo (11 caracteres), não {id}"));
         }
     }
-    let nomes = [Some(&ficha.arquivos.patch), ficha.arquivos.capa.as_ref(), ficha.arquivos.fundo.as_ref()];
-    for nome in nomes.into_iter().flatten() {
-        if !nome_simples(nome) {
-            return Err(format!("o arquivo {nome} precisa estar na própria pasta do pacote"));
+    for arquivo in ficha.arquivos() {
+        if !nome_simples(&arquivo.nome) || arquivo.nome.eq_ignore_ascii_case("ficha.json") {
+            return Err(format!("o arquivo {} precisa estar na própria pasta do pacote e não pode se chamar ficha.json", arquivo.nome));
         }
     }
-    Ok(())
+    Ok(alvo)
 }
 
 /// Só um nome de arquivo, sem pastas, unidade ou `..`.
 fn nome_simples(nome: &str) -> bool {
     !nome.is_empty() && nome != "." && nome != ".." && !nome.contains(['/', '\\', ':'])
-}
-
-/// Um item por jogo, com os ids das traduções dele, ordenado pelo nome.
-pub fn agrupar_por_jogo(pacotes: &[Pacote]) -> Vec<JogoNoCatalogo> {
-    let mut jogos: Vec<JogoNoCatalogo> = Vec::new();
-    for p in pacotes {
-        match jogos.iter_mut().find(|j| j.id == p.ficha.jogo.id) {
-            Some(j) => j.pacotes.push(p.ficha.id.clone()),
-            None => jogos.push(JogoNoCatalogo {
-                id: p.ficha.jogo.id.clone(),
-                nome: p.ficha.jogo.nome.clone(),
-                console: p.ficha.jogo.console.clone(),
-                pacotes: vec![p.ficha.id.clone()],
-            }),
-        }
-    }
-    jogos.sort_by(|a, b| a.nome.to_lowercase().cmp(&b.nome.to_lowercase()));
-    jogos
-}
-
-/// A tradução foi feita para esta ISO?
-pub fn serve_para(ficha: &Ficha, id: &IdentidadePs2) -> bool {
-    ficha.origem.hash_ra.eq_ignore_ascii_case(&id.hash_ra)
 }
 
 /// Dias em que uma tradução recém-publicada aparece com o selo "Novo".

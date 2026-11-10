@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use sha2::{Digest, Sha256};
 
-use crate::{ArquivoRemoto, Erro};
+use crate::{ArquivoBaixavel, Erro};
 
 pub trait Rede: Send + Sync {
     /// Baixa `url` para `destino`, sem passar de `limite` bytes. Devolve quantos bytes vieram.
@@ -101,7 +101,7 @@ impl Write for Gravador<'_> {
 /// Em qualquer falha o parcial é apagado e `destino` não é tocado.
 pub(crate) fn baixar_conferido(
     rede: &dyn Rede,
-    remoto: &ArquivoRemoto,
+    remoto: &ArquivoBaixavel,
     destino: &Path,
     limite: u64,
     progresso: &mut dyn FnMut(u64),

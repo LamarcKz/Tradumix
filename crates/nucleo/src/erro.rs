@@ -42,6 +42,16 @@ pub enum Erro {
     DownloadInvalido(String),
     #[error("precisa de internet para baixar o patch")]
     PrecisaInternet,
+    #[error(".cue inválido: {0}")]
+    CueInvalido(String),
+    #[error("o arquivo não é de um jogo de PS1")]
+    NaoEPs1,
+    #[error("a pasta não é do jogo {jogo}")]
+    PastaDoJogoErrada { jogo: String },
+    #[error("a tradução tentou substituir um programa do jogo: {0}")]
+    ArquivoDoJogoProtegido(String),
+    #[error("a tradução não está instalada nesta pasta")]
+    TraducaoNaoInstalada,
 }
 
 impl Erro {
@@ -77,6 +87,13 @@ impl Erro {
             Erro::Rede(m) => format!("Não foi possível baixar da internet. Confira a conexão e tente de novo. Detalhe: {m}"),
             Erro::DownloadInvalido(m) => format!("O arquivo baixado veio diferente do esperado e foi descartado. Tente de novo. Detalhe: {m}"),
             Erro::PrecisaInternet => "Precisa de internet para baixar a tradução.".into(),
+            Erro::CueInvalido(detalhe) => format!("O arquivo .cue não pôde ser lido: {detalhe}"),
+            Erro::NaoEPs1 => "Este arquivo não parece ser de um jogo de PlayStation.".into(),
+            Erro::PastaDoJogoErrada { jogo } => format!("Esta pasta não parece ser do {jogo}."),
+            Erro::ArquivoDoJogoProtegido(caminho) => {
+                format!("A tradução tentou substituir {caminho}, um programa do próprio jogo, e foi recusada.")
+            }
+            Erro::TraducaoNaoInstalada => "Esta tradução não está instalada nesta pasta.".into(),
             Erro::JaTraduzida => {
                 "Esta ISO já está com esta tradução. Para gerar de novo, selecione a ISO original, sem tradução.".into()
             }

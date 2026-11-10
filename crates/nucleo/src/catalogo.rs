@@ -1,44 +1,67 @@
-//! O índice do catálogo (`indice.json`): a lista de fichas publicadas, com os links de download.
+//! O índice do catálogo (`indice-v2.json`): a lista de fichas publicadas, com os links de download.
+//!
+//! Cada ficha é lida sozinha. A que esta versão do app não sabe instalar (plataforma ou instalação
+//! desconhecida) ou que não passa nas regras fica de fora, e as outras continuam valendo.
 
 use std::collections::HashSet;
 
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::pacote::validar_ficha;
-use crate::{ArquivoRemoto, Erro, Ficha};
+use crate::{ArquivoBaixavel, Erro, Ficha};
 
-pub const FORMATO_INDICE: u32 = 1;
+pub const FORMATO_INDICE: u32 = 2;
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Indice {
     pub formato: u32,
     pub atualizado: String,
     pub traducoes: Vec<Ficha>,
+    /// As fichas que ficaram de fora, como `"<id ou posição>: <motivo>"`.
+    pub ignoradas: Vec<String>,
 }
 
-/// Lê e confere o índice. `permitir_http_local` aceita `http://127.0.0.1` (só para testes).
+#[derive(Deserialize)]
+struct IndiceBruto {
+    formato: u32,
+    #[serde(default)]
+    atualizado: String,
+    traducoes: Vec<serde_json::Value>,
+}
+
+/// Lê o índice. Só recusa o índice inteiro se o JSON não abrir ou o formato não for o desta versão.
+/// `permitir_http_local` aceita `http://127.0.0.1` (só para testes).
 pub fn ler_indice(texto: &str, permitir_http_local: bool) -> Result<Indice, Erro> {
-    let invalido = |m: String| Erro::IndiceInvalido(m);
-    let indice: Indice = serde_json::from_str(texto).map_err(|e| invalido(format!("JSON inválido: {e}")))?;
-    if indice.formato != FORMATO_INDICE {
-        return Err(invalido(format!("formato {} não suportado (esperado {FORMATO_INDICE})", indice.formato)));
+    let bruto: IndiceBruto = serde_json::from_str(texto).map_err(|e| Erro::IndiceInvalido(format!("JSON inválido: {e}")))?;
+    if bruto.formato != FORMATO_INDICE {
+        return Err(Erro::IndiceInvalido(format!("formato {} não suportado (esperado {FORMATO_INDICE})", bruto.formato)));
     }
+    let mut indice = Indice { formato: bruto.formato, atualizado: bruto.atualizado, traducoes: Vec::new(), ignoradas: Vec::new() };
     let mut ids = HashSet::new();
-    for ficha in &indice.traducoes {
-        validar_ficha(ficha).map_err(|m| invalido(format!("{}: {m}", ficha.id)))?;
-        if !ids.insert(ficha.id.as_str()) {
-            return Err(invalido(format!("id repetido: {}", ficha.id)));
-        }
-        let download = ficha.download.as_ref().ok_or_else(|| invalido(format!("{}: falta o bloco download", ficha.id)))?;
-        let arquivos = [Some(&download.patch), download.capa.as_ref(), download.fundo.as_ref()];
-        for arquivo in arquivos.into_iter().flatten() {
-            conferir_arquivo(arquivo, permitir_http_local).map_err(|m| invalido(format!("{}: {m}", ficha.id)))?;
+    for (posicao, valor) in bruto.traducoes.into_iter().enumerate() {
+        let nome = valor.get("id").and_then(|v| v.as_str()).map(str::to_string).unwrap_or_else(|| format!("#{}", posicao + 1));
+        match ler_ficha(valor, permitir_http_local) {
+            Ok(ficha) if ids.contains(&ficha.id) => indice.ignoradas.push(format!("{nome}: id repetido")),
+            Ok(ficha) => {
+                ids.insert(ficha.id.clone());
+                indice.traducoes.push(ficha);
+            }
+            Err(motivo) => indice.ignoradas.push(format!("{nome}: {motivo}")),
         }
     }
     Ok(indice)
 }
 
-fn conferir_arquivo(arquivo: &ArquivoRemoto, permitir_http_local: bool) -> Result<(), String> {
+fn ler_ficha(valor: serde_json::Value, permitir_http_local: bool) -> Result<Ficha, String> {
+    let ficha: Ficha = serde_json::from_value(valor).map_err(|e| format!("ficha inválida: {e}"))?;
+    validar_ficha(&ficha)?;
+    for arquivo in ficha.arquivos() {
+        conferir_arquivo(arquivo, permitir_http_local)?;
+    }
+    Ok(ficha)
+}
+
+fn conferir_arquivo(arquivo: &ArquivoBaixavel, permitir_http_local: bool) -> Result<(), String> {
     let local = permitir_http_local && arquivo.url.starts_with("http://127.0.0.1");
     if !arquivo.url.starts_with("https://") && !local {
         return Err(format!("só links https são aceitos: {}", arquivo.url));

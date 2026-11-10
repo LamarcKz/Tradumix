@@ -1,34 +1,37 @@
 import * as api from "../api"
-import type { Jogo, Resultado, Traducao } from "../tipos"
+import type { PlataformaDoJogo, Resultado, Traducao } from "../tipos"
 import { Caixa } from "./Caixa"
 
 interface Props {
-  jogo: Jogo
+  nomeJogo: string
+  plataforma: PlataformaDoJogo
   traducao: Traducao
   resultado: Resultado
   aoVoltar: () => void
 }
 
-export function Pronto({ jogo, traducao, resultado, aoVoltar }: Props) {
+export function Pronto({ nomeJogo, plataforma, traducao, resultado, aoVoltar }: Props) {
   const segundos = Math.max(1, Math.round(resultado.segundos))
+  // No PC a tradução vai para a própria pasta do jogo: não há cópia gerada.
+  const naPasta = plataforma.info.escolhe_pasta
   return (
     <section className="mx-auto grid max-w-4xl grid-cols-[auto_1fr] items-start gap-12 px-10 pt-20">
-      <Caixa jogo={jogo} tamanho="grande" />
+      <Caixa nome={nomeJogo} capa={plataforma.capa} plataforma={plataforma.info} tamanho="grande" />
       <div className="min-w-0">
-        <h1 className="titulo text-6xl">ISO traduzida pronta</h1>
+        <h1 className="titulo text-6xl">{naPasta ? "Tradução instalada na pasta do jogo." : `${plataforma.info.arquivo} traduzida pronta`}</h1>
         <p className="mt-3 text-suave">
-          {jogo.nome} em {traducao.idioma.toUpperCase()}, versão {traducao.versao}, gerada em {segundos} s.
+          {nomeJogo} em {traducao.idioma.toUpperCase()}, versão {traducao.versao}, {naPasta ? "instalada" : "gerada"} em {segundos} s.
         </p>
 
         <p className="mt-6 break-all rounded-md bg-superficie px-4 py-3 text-sm">{resultado.saida}</p>
 
-        {resultado.compativel_ra ? (
+        {resultado.compativel_ra === null ? null : resultado.compativel_ra ? (
           <p className="mt-4 flex items-center gap-2 font-semibold text-verde">
             <span aria-hidden className="h-2.5 w-2.5 rounded-full bg-verde" />
             Compatível com RetroAchievements
           </p>
         ) : (
-          <p className="mt-4 text-erro">O hash do RetroAchievements mudou: as conquistas podem não funcionar.</p>
+          <p className="mt-4 text-erro">O RetroAchievements não reconhece esta cópia</p>
         )}
 
         <div className="mt-8">
@@ -45,7 +48,7 @@ export function Pronto({ jogo, traducao, resultado, aoVoltar }: Props) {
             onClick={() => void api.abrirPasta(resultado.saida)}
             className="rounded-md bg-destaque px-5 py-3 font-semibold text-fundo hover:bg-[#d5d5d5]"
           >
-            Abrir pasta
+            {naPasta ? "Abrir a pasta do jogo" : "Abrir pasta"}
           </button>
           <button onClick={aoVoltar} className="rounded-md border border-borda px-5 py-3 hover:border-destaque">
             Voltar ao início

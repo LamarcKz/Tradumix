@@ -1,8 +1,8 @@
 {
   "name": "tradumix",
   "productName": "Tradumix",
-  "version": "0.2.0",
-  "description": "Aplica traduções de jogos de PS2 na sua ISO, preservando o hash do RetroAchievements.",
+  "version": "0.3.0",
+  "description": "Aplica traduções de jogos (PS2, PS1 e PC) na cópia que você já tem.",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -14,6 +14,7 @@
     "dist": "npm test && node scripts/dist.mjs",
     "web:dev": "vite",
     "web:build": "vite build",
+    "build:previa": "vite build --config vite.previa.config.ts",
     "build": "npm run typecheck && vite build",
     "typecheck": "tsc -b",
     "test": "npm run typecheck && npm run test:unit && npm run test:rust",

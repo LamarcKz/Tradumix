@@ -1,11 +1,19 @@
 # Tradumix
 
-App para Windows que aplica traduções de jogos de PS2 na ISO que você já tem.
-Você escolhe o jogo, seleciona a sua ISO e recebe uma ISO traduzida ao lado da original.
-Toda tradução do catálogo preserva o hash do RetroAchievements, então as conquistas
-continuam funcionando.
+App para Windows que aplica traduções de jogos na cópia que você já tem:
 
-O app nunca distribui o jogo: ele usa só o patch (`.xdelta`) da tradução.
+- **PS2:** você seleciona a sua ISO e recebe uma ISO traduzida ao lado da original.
+- **PS1:** você seleciona o `.cue` e recebe um `.cue` com os `.bin` traduzidos ao lado.
+- **PC:** você escolhe a pasta do jogo instalado; o app guarda os arquivos que troca e pode remover a
+  tradução depois.
+
+Nos jogos com RetroAchievements, o app mostra se a cópia traduzida continua reconhecida, para as
+conquistas funcionarem.
+
+As traduções vêm só do catálogo público. Cada tradução diz a plataforma do jogo; o app mostra só as
+das plataformas que ele sabe instalar.
+
+O app nunca distribui o jogo: ele usa só o patch (`.xdelta`) ou os arquivos da tradução.
 
 > Em desenvolvimento.
 
@@ -27,12 +35,28 @@ quando sai uma versão nova, e você escolhe quando atualizar.
 
 | Pasta | O que é |
 |---|---|
-| `crates/nucleo` | Biblioteca Rust: leitura de ISO, identidade do jogo e hash do RetroAchievements, pacotes de tradução, aplicação do patch e histórico. |
+| `crates/nucleo` | Biblioteca Rust: fichas e catálogo, plataformas (`plataformas/`: como reconhecer a cópia de cada uma), leitura de ISO e hash do RetroAchievements, aplicação do patch e histórico. |
 | `src-tauri` | O app Tauri: expõe o núcleo como comandos para a interface. |
 | `src` | A interface em React: início, página do jogo, progresso, pronto e configurações. |
 | `scripts` | `baixar-xdelta3.mjs`: baixa o xdelta3 oficial e confere o SHA-256. |
 | `docs/ficha.md` | Formato da ficha de tradução (`ficha.json`). |
-| `docs/catalogo.md` | Formato do catálogo (`indice.json`) que o app baixa do GitHub. |
+| `docs/catalogo.md` | Formato do catálogo (`indice-v2.json`) que o app baixa do GitHub. |
+
+## Ferramentas de teste
+
+Para quem prepara uma tradução testar antes de publicar, sem instalar o app:
+
+- **`tradumix-cli`** (`crates/cli`): o mesmo núcleo do app na linha de comando. `validar` confere a
+  ficha e os arquivos do pacote; `identificar` mostra serial e hash do RetroAchievements de um `.cue`
+  (PS1) ou de uma ISO (PS2); `instalar` e `remover` fazem o que o app faz, sem internet; `previa` gera
+  o `lista.json` das telas. Toda resposta é um JSON; `tradumix-cli` sem argumentos mostra o uso.
+- **Prévia** (`npm run build:previa`, em `dist-previa/`): as telas do app num site estático, lendo o
+  `lista.json` do `tradumix-cli previa`. Precisa ser servida num endereço local (por exemplo,
+  `npx vite preview --config vite.previa.config.ts`).
+
+A cada envio para a `desenvolvimento`, o workflow [`ferramentas.yml`](.github/workflows/ferramentas.yml)
+publica os dois na pré-release `ferramentas-dev`, com a versão `dev-<commit>`. Cada versão do app leva
+também os dois, com o número da versão.
 
 ## Como rodar
 
@@ -72,12 +96,6 @@ e deixa traduzir o que já tem o patch no PC.
 Para testar com outro catálogo, defina a preferência `url_catalogo` no banco do app (`tradumix.db`,
 tabela `preferencias`, na pasta de dados).
 
-## Modo de teste (rascunhos)
-
-Em Configurações, escolha uma pasta de rascunhos: cada tradução fica numa subpasta com o
-`ficha.json` e o patch (ver [docs/ficha.md](docs/ficha.md)). Os rascunhos aparecem junto do catálogo,
-com o selo "Rascunho".
-
 ## Testes
 
 ```
@@ -86,7 +104,7 @@ npm test
 
 Roda a checagem de tipos, os testes das telas (Vitest) e os testes do Rust (inclusive os de rede,
 com um servidor HTTP local). Os testes com um jogo ou um catálogo de verdade ficam de fora e rodam à
-parte, com as variáveis `TRADUMIX_PACOTES`, `TRADUMIX_ISO_JAK2`, `TRADUMIX_SAIDA`,
+parte, com as variáveis `TRADUMIX_PATCH_JAK2`, `TRADUMIX_ISO_JAK2`, `TRADUMIX_SAIDA`,
 `TRADUMIX_INDICE` e `TRADUMIX_CATALOGO`:
 
 ```
