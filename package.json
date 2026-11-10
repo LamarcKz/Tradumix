@@ -1,7 +1,7 @@
 {
   "name": "tradumix",
   "productName": "Tradumix",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Aplica traduções de jogos (PS2, PS1 e PC) na cópia que você já tem.",
   "license": "MIT",
   "private": true,

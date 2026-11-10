@@ -1,7 +1,7 @@
 # O app Tradumix: liga o núcleo (crates/nucleo) às telas em React (src/).
 [package]
 name = "tradumix"
-version = "0.2.0"
+version = "0.3.0"
 description = "Aplica traduções de jogos de PS2 na sua ISO, preservando o hash do RetroAchievements."
 license = "MIT"
 edition = "2024"
