@@ -18,7 +18,11 @@ pub(crate) const INFO: InfoPlataforma = InfoPlataforma {
     extensoes: &[],
     tem_ra: false,
     escolhe_pasta: true,
+    proporcao_capa: "2/3",
 };
+
+/// Capa vertical da biblioteca da Steam (600×900), pelo id do jogo na loja.
+pub const ACERVO_CAPAS_STEAM: &str = "https://cdn.cloudflare.steamstatic.com/steam/apps/{id}/library_600x900.jpg";
 
 /// Um arquivo da pasta do jogo que identifica a versão testada.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -34,6 +38,9 @@ pub struct OrigemPc {
     /// Versão do jogo testada, como a loja mostra.
     pub versao: String,
     pub referencias: Vec<ReferenciaPc>,
+    /// Id do jogo na Steam: dá a capa do card. Opcional (jogos de outras lojas trazem `imagens.capa`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steam_app_id: Option<u64>,
 }
 
 /// O resultado do PC não tem campos: a instalação é conferida arquivo por arquivo.

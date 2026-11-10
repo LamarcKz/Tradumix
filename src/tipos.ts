@@ -23,6 +23,8 @@ export interface InfoPlataforma {
   tem_ra: boolean
   /** A pessoa escolhe a pasta do jogo instalado (PC) em vez de um arquivo. */
   escolhe_pasta: boolean
+  /** Proporção da caixa do jogo: "7/10" (DVD, PS2), "1/1" (CD, PS1), "2/3" (Steam, PC). */
+  proporcao_capa: string
 }
 
 export interface Traducao {

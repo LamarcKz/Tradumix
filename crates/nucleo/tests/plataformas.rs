@@ -120,3 +120,32 @@ fn ficha_pc_lida() {
     assert_eq!(alvo.url_capa(None), None);
     assert_eq!(alvo.detalhes(), "versão 1.0.3 (Steam)");
 }
+
+#[test]
+fn cada_plataforma_tem_a_proporcao_da_caixa() {
+    assert_eq!(Plataforma::Ps2.info().proporcao_capa, "7/10");
+    assert_eq!(Plataforma::Ps1.info().proporcao_capa, "1/1");
+    assert_eq!(Plataforma::Pc.info().proporcao_capa, "2/3");
+}
+
+fn pc_da_steam() -> String {
+    comum::ficha_pc_simples(&["a.txt"]).replace(r#""loja":"Steam","#, r#""loja":"Steam","steam_app_id":758330,"#)
+}
+
+#[test]
+fn capa_do_pc_vem_da_steam_pelo_id() {
+    let alvo = ler_alvo(&ficha(&pc_da_steam())).unwrap();
+    let Alvo::Pc { origem } = &alvo else { panic!("esperava PC") };
+    assert_eq!(origem.steam_app_id, Some(758330));
+    assert_eq!(
+        alvo.url_capa(None).as_deref(),
+        Some("https://cdn.cloudflare.steamstatic.com/steam/apps/758330/library_600x900.jpg")
+    );
+    assert_eq!(alvo.url_capa(Some("http://x/{serial}.jpg")).as_deref(), Some("http://x/758330.jpg"));
+}
+
+#[test]
+fn pc_sem_id_da_steam_fica_sem_capa_do_acervo() {
+    let alvo = ler_alvo(&ficha(&comum::ficha_pc_simples(&["a.txt"]))).unwrap();
+    assert_eq!(alvo.url_capa(None), None);
+}

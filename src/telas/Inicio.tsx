@@ -73,7 +73,7 @@ export function Inicio({ lista, sincronizando = false, aoAbrirJogo, aoTentarDeNo
           </div>
         )
       ) : (
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] gap-x-7 gap-y-10">
+        <ul className="grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] items-end gap-x-7 gap-y-10">
           {jogos.map((jogo) => {
             const plataforma = jogo.plataformas.find((p) => p.info.id === ativo) ?? jogo.plataformas[0]
             const traducoes = jogo.plataformas.flatMap((p) => p.traducoes)

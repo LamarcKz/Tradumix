@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import * as api from "../api"
-import { infoPc, infoPs2, jogoPs2, jogoPs2ePc, listaDe, plataforma, traducaoJak2 } from "../testes/dados"
+import { infoPc, infoPs1, infoPs2, jogoPs2, jogoPs2ePc, listaDe, plataforma, traducaoJak2 } from "../testes/dados"
 import type { Jogo, ListaJogos, Resultado, Traducao } from "../tipos"
 import { Caixa } from "./Caixa"
 import { Inicio } from "./Inicio"
@@ -298,6 +298,23 @@ describe("Caixa", () => {
     render(<Caixa nome="Jak II" capa={null} plataforma={infoPs2} />)
     expect(screen.getByText("PlayStation 2")).toBeInTheDocument()
     expect(screen.getByText("Jak II")).toBeInTheDocument()
+  })
+
+  it("caixa_no_formato_de_cada_plataforma", () => {
+    const formato = (info: typeof infoPs2) => {
+      const { container, unmount } = render(<Caixa nome="Jogo" capa="data:image/jpeg;base64,AAAA" plataforma={info} />)
+      const classe = (container.firstChild as HTMLElement).className
+      unmount()
+      return classe
+    }
+    expect(formato(infoPs2)).toContain("aspect-[7/10]")
+    expect(formato(infoPs1)).toContain("aspect-square")
+    expect(formato(infoPc)).toContain("aspect-[2/3]")
+  })
+
+  it("caixa_com_proporcao_desconhecida_usa_a_do_dvd", () => {
+    const { container } = render(<Caixa nome="Jogo" capa={null} plataforma={{ ...infoPs2, proporcao_capa: "9/7" }} />)
+    expect((container.firstChild as HTMLElement).className).toContain("aspect-[7/10]")
   })
 
   it("caixa_sem_capa_mostra_o_nome_da_plataforma", () => {
