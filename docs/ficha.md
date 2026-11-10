@@ -103,17 +103,20 @@ confere os dois em todo download e descarta o arquivo que não bater.
 - O hash do RetroAchievements segue o rcheevos: MD5 do caminho do executável como está na linha
   `BOOT` do `SYSTEM.CNF` (sem `cdrom:`, sem as barras do início e sem `;1`; ou `PSX.EXE`) seguido de
   `t_size + 2048` bytes do executável `PS-X EXE`.
-- Capa sem `imagens.capa`: acervo `xlenore/psx-covers`, pelo serial.
+- Capa sem `imagens.capa`: acervo `xlenore/psx-covers`, pelo serial. O card usa a caixa quadrada do
+  estojo de CD (no PS2, a de DVD; no PC, a proporção 2:3 da Steam), para a capa aparecer inteira.
 
 ### `pc`
 
 - A pessoa escolhe a pasta do jogo instalado. Sem RetroAchievements.
 - `origem`: `loja` ("Steam", "GOG"…), `versao` (a versão do jogo testada) e `referencias`, uma lista
-  de arquivos da pasta do jogo (`caminho`, `sha256`) que identificam essa versão.
+  de arquivos da pasta do jogo (`caminho`, `sha256`) que identificam essa versão. Opcional:
+  `steam_app_id`, o id do jogo na Steam (o número no endereço da loja), que dá a capa do card.
 - `resultado`: `{}`.
 - Nenhuma referência na pasta: o app diz que a pasta não é do jogo. Alguma diferente ou faltando: o
   app instala com o aviso de que a versão do jogo é diferente da testada.
-- Sem acervo de capas: use `imagens.capa`.
+- Capa sem `imagens.capa`: com `steam_app_id`, a capa vertical da biblioteca da Steam
+  (`library_600x900.jpg`); sem ele, o card fica sem capa.
 
 ## Selos
 

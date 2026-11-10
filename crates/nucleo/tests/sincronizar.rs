@@ -219,3 +219,15 @@ fn capa_do_acervo_nao_reescreve_a_ficha() {
     let ficha = fs::read_to_string(cache.path().join("jak2-a").join("ficha.json")).unwrap();
     assert!(!ficha.contains("imagens"), "{ficha}");
 }
+
+#[test]
+fn capa_do_pc_vem_do_acervo_da_steam() {
+    let s = Servidor::novo();
+    let pc = comum::ficha_pc_simples(&["a.txt"]).replace(r#""loja":"Steam","#, r#""loja":"Steam","steam_app_id":758330,"#);
+    s.definir("/indice.json", Resposta::Ok(indice(&[pc])));
+    s.definir("/capas/758330.jpg", Resposta::Ok(JPEG.to_vec()));
+    let cache = tempfile::tempdir().unwrap();
+    sincronizar_com_capas(&s, cache.path());
+    let p = carregar_pacotes(cache.path()).pacotes.remove(0);
+    assert_eq!(fs::read(p.imagem(nucleo::Imagem::Capa).unwrap()).unwrap(), JPEG);
+}

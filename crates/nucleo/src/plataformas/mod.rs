@@ -44,6 +44,9 @@ pub struct InfoPlataforma {
     pub tem_ra: bool,
     /// A pessoa escolhe uma pasta (o jogo instalado) em vez de um arquivo.
     pub escolhe_pasta: bool,
+    /// Proporção da caixa do jogo (largura/altura), para a capa aparecer inteira: "7/10" no DVD do
+    /// PS2, "1/1" no estojo de CD do PS1, "2/3" na capa da Steam.
+    pub proporcao_capa: &'static str,
 }
 
 impl Plataforma {
@@ -208,8 +211,11 @@ impl Alvo {
         let (acervo, serial) = match self {
             Alvo::Ps2 { origem, .. } => (ps2::ACERVO_CAPAS, &origem.serial),
             Alvo::Ps1 { origem, .. } => (ps1::ACERVO_CAPAS, &origem.serial),
-            // Não há um acervo de capas de PC por serial; a ficha traz a própria capa.
-            Alvo::Pc { .. } => return None,
+            // No PC, a capa vertical da biblioteca da Steam, pelo id do jogo; sem id, a ficha traz a própria.
+            Alvo::Pc { origem } => {
+                let id = origem.steam_app_id?.to_string();
+                return Some(modelo.unwrap_or(pc::ACERVO_CAPAS_STEAM).replace("{serial}", &id).replace("{id}", &id));
+            }
         };
         Some(modelo.unwrap_or(acervo).replace("{serial}", serial))
     }

@@ -7,16 +7,23 @@ interface Props {
   tamanho?: "normal" | "grande"
 }
 
+// As classes ficam escritas por inteiro para o Tailwind gerá-las.
+const PROPORCOES: Record<string, string> = {
+  "7/10": "aspect-[7/10]",
+  "1/1": "aspect-square",
+  "2/3": "aspect-[2/3]",
+}
+
 /**
- * A capa no formato de caixa de DVD (o do PS2, usado por enquanto em todas as plataformas). As capas
- * do acervo já trazem a faixa da plataforma; sem capa, o app desenha a faixa com o nome da
- * plataforma e o nome do jogo.
+ * A capa no formato da caixa da plataforma (DVD no PS2, estojo de CD no PS1, capa da Steam no PC),
+ * para aparecer inteira. As capas do acervo já trazem a faixa da plataforma; sem capa, o app desenha
+ * a faixa com o nome da plataforma e o nome do jogo.
  */
 export function Caixa({ nome, capa, plataforma, tamanho = "normal" }: Props) {
   const grande = tamanho === "grande"
   return (
     <div
-      className={`relative aspect-[7/10] overflow-hidden rounded-[6px] bg-caixa shadow-[0_18px_40px_-18px_rgba(0,0,0,0.8)] ring-1 ring-white/10 ${
+      className={`relative ${PROPORCOES[plataforma.proporcao_capa] ?? PROPORCOES["7/10"]} overflow-hidden rounded-[6px] bg-caixa shadow-[0_18px_40px_-18px_rgba(0,0,0,0.8)] ring-1 ring-white/10 ${
         grande ? "w-64" : "w-full"
       }`}
     >

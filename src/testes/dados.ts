@@ -10,6 +10,18 @@ export const infoPs2: InfoPlataforma = {
   extensoes: ["iso"],
   tem_ra: true,
   escolhe_pasta: false,
+  proporcao_capa: "7/10",
+}
+
+export const infoPs1: InfoPlataforma = {
+  id: "ps1",
+  nome: "PlayStation",
+  sigla: "PS1",
+  arquivo: "imagem (.cue)",
+  extensoes: ["cue"],
+  tem_ra: true,
+  escolhe_pasta: false,
+  proporcao_capa: "1/1",
 }
 
 export const infoPc: InfoPlataforma = {
@@ -20,6 +32,7 @@ export const infoPc: InfoPlataforma = {
   extensoes: [],
   tem_ra: false,
   escolhe_pasta: true,
+  proporcao_capa: "2/3",
 }
 
 export const traducaoJak2: Traducao = {
