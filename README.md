@@ -17,6 +17,12 @@ O app nunca distribui o jogo: ele usa só o patch (`.xdelta`) ou os arquivos da 
 
 > Em desenvolvimento.
 
+![Tela inicial do Tradumix com as traduções do catálogo e o filtro por plataforma](docs/prints/inicio.png)
+
+| PS2 | PS1 | PC |
+|---|---|---|
+| ![Página de uma tradução de PS2: o que foi traduzido, selo do RetroAchievements e botão para selecionar a ISO](docs/prints/jogo-ps2.png) | ![Página de uma tradução de PS1, que pede o arquivo .cue](docs/prints/jogo-ps1.png) | ![Página de uma tradução de PC, com a escolha da pasta do jogo e a opção de remover a tradução](docs/prints/jogo-pc.png) |
+
 ## Baixar
 
 Baixe a versão mais recente na [página de releases](https://github.com/LamarcKz/Tradumix/releases/latest):
